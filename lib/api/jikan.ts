@@ -147,23 +147,32 @@ async function jikanList(url: string, revalidate: number = 3600): Promise<any[]>
 
 export async function getTopAnime(
   filter: "airing" | "upcoming" | "bypopularity" | "favorite" = "bypopularity",
-  limit: number = 20
+  limit: number = 20,
+  page: number = 1
 ) {
-  return jikanList(`${JIKAN_BASE}/top/anime?filter=${filter}&limit=${limit}`);
+  return jikanList(
+    `${JIKAN_BASE}/top/anime?filter=${filter}&limit=${limit}&page=${page}`
+  );
 }
 
 export async function getSeasonalAnime(
   year: number = new Date().getFullYear(),
   season: "winter" | "spring" | "summer" | "fall" = "winter",
-  limit: number = 20
+  limit: number = 20,
+  page: number = 1
 ) {
   return jikanList(
-    `${JIKAN_BASE}/seasons/${year}/${season}?order_by=score&sort=desc&limit=${limit}`
+    `${JIKAN_BASE}/seasons/${year}/${season}?order_by=score&sort=desc&limit=${limit}&page=${page}`
   );
 }
 
-export async function getAnimeByGenre(genreId: number, limit: number = 10) {
+export async function getAnimeByGenre(
+  genreId: number,
+  limit: number = 10,
+  page: number = 1
+) {
+  // min_score keeps deep pages from decaying into unrated shovelware
   return jikanList(
-    `${JIKAN_BASE}/anime?genres=${genreId}&order_by=score&sort=desc&limit=${limit}`
+    `${JIKAN_BASE}/anime?genres=${genreId}&order_by=score&sort=desc&limit=${limit}&page=${page}&min_score=6`
   );
 }

@@ -85,9 +85,19 @@ export async function discoverTMDB(
   return data.results || [];
 }
 
-export async function getTMDBOnAir() {
+export async function getTMDBOnAir(page: number = 1) {
   const res = await fetch(
-    tmdbUrl("/tv/on_the_air"),
+    tmdbUrl("/tv/on_the_air", { page: String(page) }),
+    { next: { revalidate: 3600 } }
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.results || [];
+}
+
+export async function getTMDBNowPlaying(page: number = 1) {
+  const res = await fetch(
+    tmdbUrl("/movie/now_playing", { page: String(page), region: "US" }),
     { next: { revalidate: 3600 } }
   );
   if (!res.ok) return [];

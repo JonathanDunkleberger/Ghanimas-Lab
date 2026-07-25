@@ -25,18 +25,34 @@ const ICON_MAP: Record<string, typeof Tv> = {
 /* Extra icons per carousel key for variety */
 const CAROUSEL_ICON: Record<string, typeof Tv> = {
   "trending-movies": Flame,
+  "top-rated-films": Trophy,
+  "in-theaters": Film,
+  "scifi-films": Rocket,
+  "crime-films": Zap,
+  "comedy-films": Sparkles,
   "trending-tv": Flame,
+  "on-air-tv": Monitor,
+  "top-rated-tv": Trophy,
+  "scifi-fantasy-tv": Rocket,
+  "crime-tv": Zap,
   "seasonal-anime": Sparkles,
   "airing-anime": Zap,
+  "all-time-anime": Trophy,
+  "action-anime": Zap,
+  "fantasy-anime": Sparkles,
   "popular-games": Gamepad2,
   "new-games": Rocket,
+  "top-rated-games": Trophy,
+  "rpg-games": Sparkles,
+  "shooter-games": Zap,
+  "indie-games": Star,
   "fiction-books": BookOpen,
   "scifi-books": Rocket,
   "fantasy-books": Sparkles,
-  "top-rated-films": Trophy,
-  "on-air-tv": Monitor,
-  "top-rated-games": Trophy,
-  "action-anime": Zap,
+  "mystery-books": Zap,
+  "romance-books": Star,
+  "horror-books": Flame,
+  "history-books": BookOpen,
 };
 
 interface CarouselData {
@@ -163,6 +179,7 @@ export default function HomePage() {
               onItemClick={setSelectedItem}
               icon={CAROUSEL_ICON[c.key] || ICON_MAP[c.type] || Sparkles}
               type={c.type as MediaType}
+              railKey={c.key}
             />
           ))
         )}

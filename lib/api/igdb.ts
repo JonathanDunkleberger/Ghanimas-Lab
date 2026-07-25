@@ -111,18 +111,19 @@ export function secondsToHours(seconds: number | undefined | null): number | und
   return Math.round((seconds / 3600) * 10) / 10;
 }
 
-export async function getPopularGames(limit: number = 20) {
+export async function getPopularGames(limit: number = 20, offset: number = 0) {
   return igdbFetch(
     "/games",
     `fields name,cover.url,first_release_date,genres.name,
             rating,summary,involved_companies.company.name;
      where rating > 75 & rating_count > 50;
      sort rating desc;
-     limit ${limit};`
+     limit ${limit};
+     offset ${offset};`
   );
 }
 
-export async function getRecentGames(limit: number = 20) {
+export async function getRecentGames(limit: number = 20, offset: number = 0) {
   const sixMonthsAgo = Math.floor(
     (Date.now() - 6 * 30 * 24 * 60 * 60 * 1000) / 1000
   );
@@ -132,18 +133,37 @@ export async function getRecentGames(limit: number = 20) {
             rating,summary,involved_companies.company.name;
      where first_release_date > ${sixMonthsAgo} & rating > 60 & rating_count > 5;
      sort rating desc;
-     limit ${limit};`
+     limit ${limit};
+     offset ${offset};`
   );
 }
 
-export async function getTopRatedGames(limit: number = 20) {
+export async function getTopRatedGames(limit: number = 20, offset: number = 0) {
   return igdbFetch(
     "/games",
     `fields name,cover.url,first_release_date,genres.name,
             rating,summary,involved_companies.company.name;
      where rating_count > 100;
      sort rating desc;
-     limit ${limit};`
+     limit ${limit};
+     offset ${offset};`
+  );
+}
+
+/** IGDB genre ids: RPG 12, Shooter 5, Indie 32, Strategy 15, Platform 8, Adventure 31 */
+export async function getGamesByGenre(
+  genreId: number,
+  limit: number = 20,
+  offset: number = 0
+) {
+  return igdbFetch(
+    "/games",
+    `fields name,cover.url,first_release_date,genres.name,
+            rating,summary,involved_companies.company.name;
+     where genres = (${genreId}) & rating > 70 & rating_count > 20;
+     sort rating desc;
+     limit ${limit};
+     offset ${offset};`
   );
 }
 

@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
-import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { ChevronLeft, ChevronRight, ArrowRight, Loader2 } from "lucide-react";
 import { MediaCard } from "./MediaCard";
 import { MEDIA_TYPES, type MediaType } from "@/lib/constants";
 import type { MediaItem } from "@/stores/app-store";
 import type { LucideIcon } from "lucide-react";
+
+const MAX_RAIL_PAGES = 15; // "seemingly endless", not actually infinite
 
 interface MediaCarouselProps {
   title: string;
@@ -16,6 +18,13 @@ interface MediaCarouselProps {
   icon?: LucideIcon;
   type?: MediaType;
   onViewAll?: () => void;
+  /**
+   * When set, scrolling near the end of the row pulls the next page from
+   * /api/rail/[railKey] and appends it (deduped) — near-endless carousels.
+   */
+  railKey?: string;
+  /** Ids never to append from deeper pages (e.g. already watched/favorited) */
+  excludeIds?: string[];
 }
 
 export function MediaCarousel({
@@ -26,20 +35,86 @@ export function MediaCarousel({
   icon: IconComp,
   type,
   onViewAll,
+  railKey,
+  excludeIds,
 }: MediaCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(true);
   const [hovered, setHovered] = useState(false);
+  const [extraItems, setExtraItems] = useState<MediaItem[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
   const tc =
     type && MEDIA_TYPES[type] ? MEDIA_TYPES[type].color : "#c5c2bc";
+
+  // Mutable fetch state — keeps the scroll handler stable across renders
+  const railState = useRef({ page: 1, ended: false, inFlight: false });
+
+  const allItems = useMemo(() => {
+    const seen = new Set<string>();
+    const out: MediaItem[] = [];
+    for (const it of [...items, ...extraItems]) {
+      if (seen.has(it.id)) continue;
+      seen.add(it.id);
+      out.push(it);
+    }
+    return out;
+  }, [items, extraItems]);
+
+  const allIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    allIdsRef.current = new Set(allItems.map((i) => i.id));
+  }, [allItems]);
+  const excludeRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    excludeRef.current = new Set(excludeIds || []);
+  }, [excludeIds]);
+
+  const maybeLoadMore = useCallback(() => {
+    const st = railState.current;
+    if (!railKey || st.ended || st.inFlight) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    // Trigger when within ~2.5 viewports of the end
+    if (el.scrollLeft < el.scrollWidth - el.clientWidth * 3.5) return;
+
+    st.inFlight = true;
+    setLoadingMore(true);
+    const next = st.page + 1;
+    fetch(`/api/rail/${railKey}?page=${next}`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then(({ items: fresh }: { items: MediaItem[] }) => {
+        st.page = next;
+        const add = (fresh || []).filter(
+          (i) => !allIdsRef.current.has(i.id) && !excludeRef.current.has(i.id)
+        );
+        if (add.length > 0) setExtraItems((prev) => [...prev, ...add]);
+        if (!fresh || fresh.length === 0 || next >= MAX_RAIL_PAGES) {
+          st.ended = true;
+        } else if (add.length < 5) {
+          // Page was mostly duplicates — quietly reach for the next one so
+          // the user never scrolls into a wall
+          st.inFlight = false;
+          setTimeout(maybeLoadMore, 50);
+          return;
+        }
+      })
+      .catch(() => {
+        st.ended = true;
+      })
+      .finally(() => {
+        st.inFlight = false;
+        setLoadingMore(false);
+      });
+  }, [railKey]);
 
   const checkScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     setCanLeft(el.scrollLeft > 10);
     setCanRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
-  }, []);
+    maybeLoadMore();
+  }, [maybeLoadMore]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -48,7 +123,7 @@ export function MediaCarousel({
       checkScroll();
       return () => el.removeEventListener("scroll", checkScroll);
     }
-  }, [checkScroll, items]);
+  }, [checkScroll, allItems]);
 
   const scroll = (dir: "left" | "right") => {
     const el = scrollRef.current;
@@ -61,7 +136,7 @@ export function MediaCarousel({
     });
   };
 
-  if (!items || items.length === 0) return null;
+  if (!allItems || allItems.length === 0) return null;
 
   return (
     <section
@@ -138,7 +213,7 @@ export function MediaCarousel({
             WebkitOverflowScrolling: "touch",
           } as React.CSSProperties}
         >
-          {items.map((item) => (
+          {allItems.map((item) => (
             <div
               key={item.id}
               style={{
@@ -154,6 +229,14 @@ export function MediaCarousel({
               />
             </div>
           ))}
+          {loadingMore && (
+            <div
+              style={{ flexShrink: 0, width: "172px" }}
+              className="flex aspect-[2/3] items-center justify-center rounded-xl bg-white/[0.02]"
+            >
+              <Loader2 size={20} className="animate-spin text-cream/25" />
+            </div>
+          )}
         </div>
       </div>
     </section>

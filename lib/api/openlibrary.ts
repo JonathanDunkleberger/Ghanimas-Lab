@@ -13,11 +13,16 @@ const OL_FIELDS =
  * titles, unlike Google Books' subject browse which returns near-random
  * catalog entries. No API key, no meaningful rate limits.
  */
-export async function browseOpenLibrary(subject: string, limit: number = 40) {
+export async function browseOpenLibrary(
+  subject: string,
+  limit: number = 40,
+  page: number = 1
+) {
   const params = new URLSearchParams({
     q: `subject:"${subject}"`,
     sort: "readinglog",
     limit: String(limit),
+    page: String(page),
     fields: OL_FIELDS,
     lang: "en",
   });
@@ -107,17 +112,20 @@ export function normalizeOpenLibraryDoc(doc: any): MediaItem {
  */
 export async function fetchBooksBySubject(
   subject: string,
-  limit: number = 40
+  limit: number = 40,
+  page: number = 1
 ): Promise<MediaItem[]> {
   try {
-    const docs = await browseOpenLibrary(subject, limit);
+    const docs = await browseOpenLibrary(subject, limit, page);
     const items = docs
       .map(normalizeOpenLibraryDoc)
       .filter((i: MediaItem) => i.cover_image_url);
-    if (items.length >= 8) return items;
+    // Deep pages legitimately thin out — only fall back on a weak first page
+    if (items.length >= 8 || page > 1) return items;
   } catch {
     // fall through to Google
   }
+  if (page > 1) return [];
   try {
     const rows = await browseBooks(subject, limit);
     return rows

@@ -44,6 +44,35 @@ const RAIL_ICONS: Record<string, typeof Star> = {
   book: BookOpen,
 };
 
+// Once your scored picks run out, each rail keeps scrolling into deeper
+// pages of a same-type source rail (consumed titles filtered out)
+const TYPE_RAIL_KEY: Record<string, string> = {
+  film: "trending-movies",
+  tv: "trending-tv",
+  anime: "all-time-anime",
+  game: "popular-games",
+};
+
+function bookRailFor(genres: string[]): string {
+  for (const g of genres) {
+    const lg = g.toLowerCase();
+    if (lg.includes("fantasy")) return "fantasy-books";
+    if (lg.includes("sci")) return "scifi-books";
+    if (lg.includes("mystery") || lg.includes("crime") || lg.includes("thriller"))
+      return "mystery-books";
+    if (lg.includes("romance")) return "romance-books";
+    if (lg.includes("horror")) return "horror-books";
+    if (lg.includes("history") || lg.includes("biography")) return "history-books";
+  }
+  return "fiction-books";
+}
+
+const GENRE_RAIL_SUBTITLES = [
+  "Films, series, games, and books pulling on the same thread.",
+  "Every medium, one obsession — keep following it.",
+  "The deep cut: more of what keeps showing up in your favorites.",
+];
+
 export default function ForYouPage() {
   const { setSelectedItem } = useAppStore();
   const favorites = useMediaStore((s) => s.favorites);
@@ -136,9 +165,10 @@ export default function ForYouPage() {
       .sort((a, b) => b.score - a.score);
   }, [carousels, consumedSet, tasteProfile]);
 
-  // Top picks + per-type rails, deduped: an item shown in "Picked for you"
-  // never repeats in a genre rail below it.
-  const { topPicks, railsByType } = useMemo(() => {
+  // Top picks + per-type rails + genre deep-dives + fresh releases, all
+  // deduped against each other: an item shown in "Picked for you" never
+  // repeats in any rail below it.
+  const { topPicks, railsByType, genreRails, freshRail } = useMemo(() => {
     const used = new Set<string>();
     const picks = scoredPool.slice(0, 20).map((s) => s.item);
     for (const p of picks) used.add(p.id);
@@ -148,13 +178,59 @@ export default function ForYouPage() {
       if (used.has(s.item.id)) continue;
       const t = s.item.media_type;
       if (!byType[t]) byType[t] = [];
-      if (byType[t].length < 15) {
+      if (byType[t].length < 24) {
         byType[t].push(s.item);
         used.add(s.item.id);
       }
     }
-    return { topPicks: picks, railsByType: byType };
-  }, [scoredPool]);
+
+    // Cross-media genre deep-dives — up to 3 rails from the user's
+    // strongest genres, each mixing every medium
+    const gRails: { genre: string; items: MediaItem[] }[] = [];
+    if (tasteProfile) {
+      const strongest = Object.entries(tasteProfile.genres)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([g]) => g);
+      for (const g of strongest) {
+        if (gRails.length >= 3) break;
+        const railItems: MediaItem[] = [];
+        for (const s of scoredPool) {
+          if (used.has(s.item.id)) continue;
+          if (!s.item.genres?.includes(g)) continue;
+          railItems.push(s.item);
+          used.add(s.item.id);
+          if (railItems.length >= 20) break;
+        }
+        if (railItems.length >= 6) {
+          gRails.push({ genre: g, items: railItems });
+        } else {
+          // Too thin to be a rail — release the items back to the pool
+          for (const i of railItems) used.delete(i.id);
+        }
+      }
+    }
+
+    // Fresh, taste-matched releases from the last two years
+    const currentYear = new Date().getFullYear();
+    const fresh: MediaItem[] = [];
+    for (const s of scoredPool) {
+      if (used.has(s.item.id)) continue;
+      const y = parseInt(String(s.item.year));
+      if (y >= currentYear - 1) {
+        fresh.push(s.item);
+        used.add(s.item.id);
+        if (fresh.length >= 20) break;
+      }
+    }
+
+    return {
+      topPicks: picks,
+      railsByType: byType,
+      genreRails: gRails,
+      freshRail: fresh,
+    };
+  }, [scoredPool, tasteProfile]);
 
   // The user's strongest genres (for rail titles)
   const topGenres = useMemo(() => {
@@ -300,6 +376,7 @@ export default function ForYouPage() {
   }, [favorites, watched, cachedItems, ratings, topGenres]);
 
   const bookRail = railsByType["book"] || [];
+  const consumedIds = useMemo(() => Array.from(consumedSet), [consumedSet]);
 
   return (
     <div className="animate-fadeIn">
@@ -421,6 +498,8 @@ export default function ForYouPage() {
             onItemClick={setSelectedItem}
             icon={BookOpen}
             type="book"
+            railKey={bookRailFor(topGenres)}
+            excludeIds={consumedIds}
           />
         )}
 
@@ -435,8 +514,33 @@ export default function ForYouPage() {
               onItemClick={setSelectedItem}
               icon={RAIL_ICONS[t] || TrendingUp}
               type={t as MediaType}
+              railKey={TYPE_RAIL_KEY[t]}
+              excludeIds={consumedIds}
             />
           ) : null
+        )}
+
+        {/* Cross-media genre deep-dives */}
+        {genreRails.map(({ genre, items: railItems }, idx) => (
+          <MediaCarousel
+            key={`genre-${genre}`}
+            title={`Deeper into ${genre}`}
+            subtitle={GENRE_RAIL_SUBTITLES[idx % GENRE_RAIL_SUBTITLES.length]}
+            items={railItems}
+            onItemClick={setSelectedItem}
+            icon={Sparkles}
+          />
+        ))}
+
+        {/* Fresh, taste-matched releases */}
+        {freshRail.length >= 6 && (
+          <MediaCarousel
+            title="New and matched to you"
+            subtitle="Released in the last couple of years and scored against your taste."
+            items={freshRail}
+            onItemClick={setSelectedItem}
+            icon={TrendingUp}
+          />
         )}
 
         {/* Blended Surprise Mix */}
