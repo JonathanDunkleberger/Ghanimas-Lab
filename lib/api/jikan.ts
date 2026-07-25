@@ -20,17 +20,40 @@ export async function searchManga(query: string) {
   return data.data || [];
 }
 
+/**
+ * Jikan returns HTTP 200 with an error body ({"status":500,...}) when MAL
+ * times out — and Next would cache that bad payload for the full revalidate
+ * window. Validate the body; if it's bad, retry once bypassing the cache.
+ */
+async function jikanJSON(url: string, revalidate: number) {
+  const isValid = (json: any) =>
+    json && json.data != null && json.status !== 500 && json.status !== 504;
+  try {
+    const res = await fetch(url, { next: { revalidate } });
+    if (res.ok) {
+      const json = await res.json();
+      if (isValid(json)) return json;
+    }
+  } catch {
+    // fall through to uncached retry
+  }
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (res.ok) {
+      const json = await res.json();
+      if (isValid(json)) return json;
+    }
+  } catch {
+    // give up
+  }
+  return null;
+}
+
 export async function getAnimeDetails(malId: number) {
   const [anime, chars, videos] = await Promise.all([
-    fetch(`${JIKAN_BASE}/anime/${malId}/full`, {
-      next: { revalidate: 86400 },
-    }).then((r) => (r.ok ? r.json() : null)),
-    fetch(`${JIKAN_BASE}/anime/${malId}/characters`, {
-      next: { revalidate: 86400 },
-    }).then((r) => (r.ok ? r.json() : null)),
-    fetch(`${JIKAN_BASE}/anime/${malId}/videos`, {
-      next: { revalidate: 604800 },
-    }).then((r) => (r.ok ? r.json() : null)),
+    jikanJSON(`${JIKAN_BASE}/anime/${malId}/full`, 86400),
+    jikanJSON(`${JIKAN_BASE}/anime/${malId}/characters`, 86400),
+    jikanJSON(`${JIKAN_BASE}/anime/${malId}/videos`, 604800),
   ]);
 
   return {
@@ -38,6 +61,52 @@ export async function getAnimeDetails(malId: number) {
     characters: chars?.data || [],
     videos: videos?.data || {},
   };
+}
+
+/**
+ * Exact aired-episode count for shows where Jikan reports `episodes: null`
+ * (currently-airing series like One Piece). Reads the paginated episodes
+ * list: (pages - 1) * pageSize + episodes on the last page.
+ */
+export async function getAnimeEpisodeCount(
+  malId: number
+): Promise<number | undefined> {
+  // Jikan sometimes returns 200 with an UpstreamException body when MAL is
+  // slow; a quick retry usually hits their cache.
+  const fetchPage = async (page: number) => {
+    const url = `${JIKAN_BASE}/anime/${malId}/episodes?page=${page}`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        // First attempt may serve a poisoned cached body — bypass after that
+        const res = await fetch(
+          url,
+          attempt === 0
+            ? { next: { revalidate: 86400 } }
+            : { cache: "no-store" }
+        );
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json?.data) && json.data.length > 0) return json;
+        }
+      } catch {
+        // fall through to retry
+      }
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    return null;
+  };
+
+  const first = await fetchPage(1);
+  if (!first) return undefined;
+
+  const pageSize = (first.data || []).length;
+  const lastPage = first.pagination?.last_visible_page || 1;
+  if (!pageSize) return undefined;
+  if (lastPage === 1) return pageSize;
+
+  const last = await fetchPage(lastPage);
+  if (!last) return undefined;
+  return (lastPage - 1) * pageSize + (last.data || []).length;
 }
 
 export async function getTopAnime(

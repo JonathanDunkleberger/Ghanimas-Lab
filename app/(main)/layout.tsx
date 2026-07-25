@@ -5,7 +5,6 @@ import { TopBar } from "@/components/layout/TopBar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { MediaDetailPanel } from "@/components/media/MediaDetailPanel";
 import { SearchResultsGrid } from "@/components/media/SearchResultsGrid";
-import { MediaStoreHydrator } from "@/components/shared/MediaStoreHydrator";
 import { useAppStore } from "@/stores/app-store";
 
 export default function MainLayout({
@@ -17,7 +16,6 @@ export default function MainLayout({
 
   return (
     <div className="flex min-h-screen bg-fey-black overflow-x-hidden">
-      <MediaStoreHydrator />
       {/* Sidebar — hidden on mobile via CSS */}
       <div className="hidden md:block">
         <Sidebar />

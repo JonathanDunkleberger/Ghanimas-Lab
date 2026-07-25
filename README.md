@@ -152,7 +152,8 @@ Run [`supabase/rabbit_room_schema.sql`](supabase/rabbit_room_schema.sql) once in
 | `TMDB_API_KEY` | Film, TV, anime |
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | IGDB games |
 | `GOOGLE_BOOKS_API_KEY` | Books |
-| `OPENAI_API_KEY` | Optional embeddings / seeding |
+| `OMDB_API_KEY` | IMDb / Rotten Tomatoes / Metacritic scores (free at omdbapi.com) |
+| `OPENAI_API_KEY` | Optional: game time-to-beat fallback, embeddings / seeding |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server writes |
 | `CLERK_SECRET_KEY` | Auth |
 

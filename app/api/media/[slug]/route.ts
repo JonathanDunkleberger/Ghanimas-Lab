@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { getTMDBDetails, getTMDBTrending } from "@/lib/api/tmdb";
-import { getAnimeDetails, getTopAnime } from "@/lib/api/jikan";
+import { getAnimeDetails, getAnimeEpisodeCount, getTopAnime } from "@/lib/api/jikan";
 import {
   getGameDetails,
   getPopularGames,
@@ -9,6 +9,8 @@ import {
   secondsToHours,
 } from "@/lib/api/igdb";
 import { getBookDetails, bookCoverUrl, browseBooks, searchBooks } from "@/lib/api/books";
+import { getExternalRatings } from "@/lib/api/omdb";
+import { estimateGameHours } from "@/lib/api/openai";
 import {
   normalizeTMDBMovie,
   normalizeTMDBTV,
@@ -45,14 +47,32 @@ export async function GET(
       const id = parseInt(sourceId);
       if (isNaN(id)) return NextResponse.json({ error: "Invalid TMDB ID" }, { status: 400 });
 
-      const data: any = await getTMDBDetails(id, "movie");
+      let data: any = await getTMDBDetails(id, "movie");
       if (!data || data.success === false) {
-        const tvData: any = await getTMDBDetails(id, "tv");
-        if (tvData && tvData.success !== false) {
-          media = mapTMDB(tvData, "tv");
+        data = await getTMDBDetails(id, "tv");
+        if (data && data.success !== false) {
+          media = mapTMDB(data, "tv");
         }
       } else {
         media = mapTMDB(data, data.number_of_seasons ? "tv" : "film");
+      }
+
+      // IMDb / Rotten Tomatoes / Metacritic via OMDb (needs OMDB_API_KEY)
+      if (media && data) {
+        const imdbId: string | undefined =
+          data.imdb_id || data.external_ids?.imdb_id;
+        if (imdbId) {
+          const ext = await getExternalRatings(imdbId);
+          if (ext) media.metadata.external_ratings = ext;
+          (media.metadata.links as OutLink[]).splice(1, 0, {
+            label: "IMDb",
+            url: `https://www.imdb.com/title/${imdbId}/`,
+          });
+        }
+        (media.metadata.links as OutLink[]).push({
+          label: "Rotten Tomatoes",
+          url: `https://www.rottentomatoes.com/search?search=${encodeURIComponent(media.title)}`,
+        });
       }
     } else if (source === "mal") {
       const id = parseInt(sourceId);
@@ -60,6 +80,11 @@ export async function GET(
 
       const data: any = await getAnimeDetails(id);
       if (data?.mal_id) {
+        // Airing shows report episodes: null — count the aired ones instead
+        let episodeCount: number | undefined = data.episodes;
+        if (episodeCount == null) {
+          episodeCount = await getAnimeEpisodeCount(id);
+        }
         const relatedAnime: any[] = [];
         if (data.relations) {
           for (const rel of data.relations) {
@@ -92,12 +117,20 @@ export async function GET(
           author: (data.studios || []).map((s: any) => s.name).join(", "),
           mal_id: data.mal_id,
           status_text: data.status,
-          runtime: data.episodes,
-          cast: (data.characters || []).slice(0, 20).map((c: any) => ({
-            name: c.character?.name || "",
-            character: c.role,
-            image_url: c.character?.images?.jpg?.image_url,
-          })),
+          runtime: episodeCount,
+          cast: (data.characters || []).slice(0, 20).map((c: any) => {
+            const va = (c.voice_actors || []).find(
+              (v: any) => v.language === "Japanese"
+            ) || (c.voice_actors || [])[0];
+            return {
+              name: c.character?.name || "",
+              character: va?.person?.name
+                ? `CV: ${va.person.name}`
+                : c.role,
+              image_url: c.character?.images?.jpg?.image_url,
+              role: c.role,
+            };
+          }),
           videos: data.trailer?.youtube_id
             ? [{
                 id: data.trailer.youtube_id,
@@ -110,14 +143,19 @@ export async function GET(
             ...(data.themes || []).map((t: any) => t.name),
             ...(data.demographics || []).map((d: any) => d.name),
           ],
-          seasons: data.episodes
-            ? [{ number: 1, episode_count: data.episodes, name: "Season 1", air_date: data.aired?.from }]
+          seasons: episodeCount
+            ? [{ number: 1, episode_count: episodeCount, name: "Season 1", air_date: data.aired?.from }]
             : [],
           related: relatedAnime.length > 0 ? relatedAnime : undefined,
           metadata: {
             type_text: data.type,
             source: data.source,
             duration: data.duration,
+            // "24 min per ep" → 24, used for binge math
+            episode_minutes: (() => {
+              const m = /(\d+)\s*min/.exec(data.duration || "");
+              return m ? parseInt(m[1]) : undefined;
+            })(),
             aired_from: data.aired?.from,
             aired_to: data.aired?.to,
             season: data.season,
@@ -144,11 +182,27 @@ export async function GET(
       if (data) {
         const ttRaw = data.game_time_to_beats;
         const tt = Array.isArray(ttRaw) ? ttRaw[0] || {} : ttRaw || {};
-        const playtime = {
+        const playtime: {
+          hastily?: number;
+          normally?: number;
+          completely?: number;
+          estimated?: boolean;
+        } = {
           hastily: secondsToHours(tt.hastily),
           normally: secondsToHours(tt.normally),
           completely: secondsToHours(tt.completely),
         };
+        // IGDB has no data for many games — fall back to an AI estimate
+        if (playtime.normally == null) {
+          const releaseYear = data.first_release_date
+            ? new Date(data.first_release_date * 1000).getFullYear()
+            : undefined;
+          const est = await estimateGameHours(data.name, releaseYear);
+          if (est != null) {
+            playtime.normally = est;
+            playtime.estimated = true;
+          }
+        }
         const links: OutLink[] = [];
         if (data.url) links.push({ label: "IGDB", url: data.url });
         for (const w of data.websites || []) {
@@ -230,12 +284,20 @@ export async function GET(
           [vol.title, (vol.authors || [])[0]].filter(Boolean).join(" ")
         );
         const links: OutLink[] = [];
-        if (vol.previewLink) links.push({ label: "Preview", url: vol.previewLink });
-        if (vol.infoLink) links.push({ label: "Google Books", url: vol.infoLink });
         links.push({
-          label: "Audible search",
+          label: "Audible",
           url: `https://www.audible.com/search?keywords=${q}`,
         });
+        links.push({
+          label: "Amazon",
+          url: `https://www.amazon.com/s?k=${q}&i=stripbooks`,
+        });
+        links.push({
+          label: "Goodreads",
+          url: `https://www.goodreads.com/search?q=${q}`,
+        });
+        if (vol.previewLink) links.push({ label: "Preview", url: vol.previewLink });
+        if (vol.infoLink) links.push({ label: "Google Books", url: vol.infoLink });
         links.push({
           label: "Open Library",
           url: `https://openlibrary.org/search?q=${q}`,
@@ -334,13 +396,20 @@ function mapTMDB(data: any, type: "film" | "tv") {
     tmdb_id: data.id,
     status_text: data.status,
     runtime: type === "film" ? data.runtime : data.number_of_episodes,
-    cast: (data.credits?.cast || []).slice(0, 20).map((c: any) => ({
-      name: c.name,
-      character: c.character,
-      image_url: c.profile_path
-        ? `https://image.tmdb.org/t/p/w185${c.profile_path}`
-        : undefined,
-    })),
+    // For TV, aggregate_credits spans the whole run (not just the latest season)
+    cast: (
+      (type === "tv" && data.aggregate_credits?.cast?.length
+        ? data.aggregate_credits.cast
+        : data.credits?.cast) || []
+    )
+      .slice(0, 20)
+      .map((c: any) => ({
+        name: c.name,
+        character: c.roles?.[0]?.character || c.character,
+        image_url: c.profile_path
+          ? `https://image.tmdb.org/t/p/w185${c.profile_path}`
+          : undefined,
+      })),
     videos: (data.videos?.results || [])
       .filter((v: any) => v.site === "YouTube")
       .slice(0, 8)
@@ -384,8 +453,14 @@ function mapTMDB(data: any, type: "film" | "tv") {
       production_companies: (data.production_companies || []).map((c: any) => c.name),
       budget: type === "film" && data.budget > 0 ? data.budget : undefined,
       revenue: type === "film" && data.revenue > 0 ? data.revenue : undefined,
-      episode_runtime: type === "tv" ? data.episode_run_time?.[0] : undefined,
+      episode_runtime:
+        type === "tv"
+          ? data.episode_run_time?.[0] || data.last_episode_to_air?.runtime || undefined
+          : undefined,
       networks: type === "tv" ? (data.networks || []).map((n: any) => n.name) : undefined,
+      first_air_date: type === "tv" ? data.first_air_date || undefined : undefined,
+      last_air_date: type === "tv" ? data.last_air_date || undefined : undefined,
+      season_count: type === "tv" ? data.number_of_seasons || undefined : undefined,
       spoken_languages: (data.spoken_languages || []).map((l: any) => l.english_name),
       tagline: data.tagline || undefined,
       vote_count: data.vote_count || undefined,
