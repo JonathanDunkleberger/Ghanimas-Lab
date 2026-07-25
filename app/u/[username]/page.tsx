@@ -88,7 +88,7 @@ export default async function PublicProfilePage({ params }: Props) {
               className="rounded-xl border border-white/[0.025] p-4 text-center"
               style={{
                 background:
-                  "linear-gradient(135deg, rgba(18,18,24,0.85), rgba(12,12,18,0.92))",
+                  "linear-gradient(135deg, rgba(18,18,20,0.85), rgba(12,12,14,0.92))",
               }}
             >
               <div className="text-[22px] font-black text-gold">{s.value}</div>
@@ -110,14 +110,14 @@ export default async function PublicProfilePage({ params }: Props) {
               className="flex items-center gap-3 rounded-xl border border-white/[0.025] px-4 py-3"
               style={{
                 background:
-                  "linear-gradient(135deg, rgba(18,18,24,0.85), rgba(12,12,18,0.92))",
+                  "linear-gradient(135deg, rgba(18,18,20,0.85), rgba(12,12,14,0.92))",
               }}
             >
               <span
                 className="min-w-[24px] text-right text-[18px] font-black"
                 style={{
                   color:
-                    i === 0 ? "#c5c2bc" : "rgba(224,218,206,0.1)",
+                    i === 0 ? "#c5c2bc" : "rgba(240,238,234,0.1)",
                 }}
               >
                 #{i + 1}
@@ -152,7 +152,7 @@ export default async function PublicProfilePage({ params }: Props) {
           className="rounded-xl border border-white/[0.025] px-4 py-8 text-center text-[12px] text-cream/20"
           style={{
             background:
-              "linear-gradient(135deg, rgba(18,18,24,0.85), rgba(12,12,18,0.92))",
+              "linear-gradient(135deg, rgba(18,18,20,0.85), rgba(12,12,14,0.92))",
           }}
         >
           No public reviews yet

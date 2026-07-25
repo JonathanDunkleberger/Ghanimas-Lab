@@ -13,7 +13,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
   if (!activities || activities.length === 0) {
     return (
       <div className="rounded-xl border border-white/[0.025] p-5"
-        style={{ background: "linear-gradient(135deg, rgba(18,18,24,0.85), rgba(12,12,18,0.92))" }}
+        style={{ background: "linear-gradient(135deg, rgba(18,18,20,0.85), rgba(12,12,14,0.92))" }}
       >
         <h3 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-cream">
           <Clock size={14} className="text-gold" /> Recent Activity
@@ -27,7 +27,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
 
   return (
     <div className="rounded-xl border border-white/[0.025] p-5"
-      style={{ background: "linear-gradient(135deg, rgba(18,18,24,0.85), rgba(12,12,18,0.92))" }}
+      style={{ background: "linear-gradient(135deg, rgba(18,18,20,0.85), rgba(12,12,14,0.92))" }}
     >
       <h3 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-cream">
         <Clock size={14} className="text-gold" /> Recent Activity

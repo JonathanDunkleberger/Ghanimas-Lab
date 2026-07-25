@@ -24,9 +24,9 @@ import { useAppStore } from "@/stores/app-store";
 import { useMediaStore } from "@/stores/media-store";
 import { RatingSlider } from "@/components/reviews/RatingInput";
 import { RabbitRoom } from "@/components/room/RabbitRoom";
-import { MediaCard } from "./MediaCard";
 import { CastCarousel } from "./CastCarousel";
-import { VideoCarousel } from "./VideoCarousel";
+import { ScoreBadges } from "./ScoreBadges";
+import type { ExternalRatings } from "@/lib/api/omdb";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function getWatchLabel(type: string) {
@@ -65,6 +65,30 @@ function getWatchlistLabel(type: string) {
       return "Add to Watchlist";
   }
 }
+
+/** "142" minutes → "2h 22min"; large totals → "~236h" */
+function formatHours(totalMinutes: number): string {
+  const h = totalMinutes / 60;
+  if (h >= 20) return `~${Math.round(h)}h`;
+  const rounded = Math.round(h * 10) / 10;
+  return `~${rounded}h`;
+}
+
+/** Brand accents for outbound link pills */
+const LINK_BRAND_COLORS: Record<string, string> = {
+  IMDb: "#F5C518",
+  "Rotten Tomatoes": "#FA320A",
+  Audible: "#F8991C",
+  Amazon: "#FF9900",
+  Goodreads: "#D7A168",
+  Steam: "#66C0F4",
+  "Epic Games": "#ababab",
+  GOG: "#A855F7",
+  MyAnimeList: "#5D8FDB",
+  TMDB: "#01B4E4",
+  "Google Books": "#8AB4F8",
+  "Open Library": "#E1DCC5",
+};
 
 function getRatingSource(mediaType: string): string {
   switch (mediaType) {
@@ -175,21 +199,35 @@ export function MediaDetailPanel() {
 
   // ── Length / time-to-consume chips ──
   const playtime = display.metadata?.playtime as
-    | { hastily?: number; normally?: number; completely?: number }
+    | { hastily?: number; normally?: number; completely?: number; estimated?: boolean }
     | undefined;
   const lengthChips = (() => {
     const chips: string[] = [];
+    const meta = (display.metadata || {}) as Record<string, unknown>;
+
+    const pushBinge = (episodes: number, minutesPerEp: number) => {
+      chips.push(`${episodes} episodes`);
+      const totalMin = episodes * minutesPerEp;
+      chips.push(`${formatHours(totalMin)} binge`);
+      // For the true monsters (One Piece, Monster, ...) show it in days too
+      if (totalMin >= 48 * 60) {
+        chips.push(`~${Math.round(totalMin / 60 / 24)} days nonstop`);
+      }
+    };
+
     switch (display.media_type) {
       case "anime":
         if (display.runtime) {
-          chips.push(`${display.runtime} episodes`);
-          chips.push(`~${Math.round((display.runtime * 24) / 60)}h binge`);
+          const epMin =
+            typeof meta.episode_minutes === "number" ? meta.episode_minutes : 24;
+          pushBinge(display.runtime, epMin);
         }
         break;
       case "tv":
         if (display.runtime) {
-          chips.push(`${display.runtime} episodes`);
-          chips.push(`~${Math.round((display.runtime * 45) / 60)}h binge`);
+          const epMin =
+            typeof meta.episode_runtime === "number" ? meta.episode_runtime : 45;
+          pushBinge(display.runtime, epMin);
         }
         break;
       case "film":
@@ -201,20 +239,24 @@ export function MediaDetailPanel() {
         break;
       case "book":
         if (display.runtime) {
-          const readH = Math.round((display.runtime / 250) * 10) / 10;
-          // ~155 wpm ≈ 250 words/page → pages/155 ≈ hours listen
-          const listenH = Math.round((display.runtime / 155) * 10) / 10;
+          // ~40 pages/hour reading, ~35 pages/hour narrated audio
+          const readH = Math.round((display.runtime / 40) * 10) / 10;
+          const listenH = Math.round((display.runtime / 35) * 10) / 10;
           chips.push(`${display.runtime} pages`);
           chips.push(`~${readH}h to read`);
           chips.push(`~${listenH}h audiobook`);
         }
         break;
-      case "game":
-        if (playtime?.normally != null) chips.push(`~${playtime.normally}h to beat`);
+      case "game": {
+        const est = playtime?.estimated ? " (AI est.)" : "";
+        if (playtime?.normally != null)
+          chips.push(`~${playtime.normally}h to beat${est}`);
         else if (display.runtime) chips.push(`~${display.runtime}h to beat`);
         if (playtime?.hastily != null) chips.push(`~${playtime.hastily}h rushed`);
-        if (playtime?.completely != null) chips.push(`~${playtime.completely}h completion`);
+        if (playtime?.completely != null)
+          chips.push(`~${playtime.completely}h completion`);
         break;
+      }
     }
     return chips;
   })();
@@ -257,23 +299,29 @@ export function MediaDetailPanel() {
   };
 
   return (
-    <div
+    <motion.div
       onClick={onClose}
       className="fixed inset-0 z-[1000] flex items-center justify-center"
       style={{
         background: "rgba(0,0,0,0.7)",
         backdropFilter: "blur(16px)",
       }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
     >
-      <div
+      <motion.div
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/[0.05]"
         style={{
           maxHeight: "95vh",
-          background: "#0a0a0f",
+          background: "#0c0c0e",
           boxShadow: "0 0 80px rgba(0,0,0,0.8)",
           scrollbarWidth: "none",
         }}
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       >
         {/* ─── 1. HERO ─────────────────────────────────────────────────── */}
         <div
@@ -297,7 +345,7 @@ export function MediaDetailPanel() {
             className="absolute inset-0"
             style={{
               background:
-                "linear-gradient(180deg, transparent 0%, rgba(10,10,15,0.4) 40%, #0a0a0f 100%)",
+                "linear-gradient(180deg, transparent 0%, rgba(12,12,14,0.4) 40%, #0c0c0e 100%)",
             }}
           />
 
@@ -332,39 +380,42 @@ export function MediaDetailPanel() {
                 </span>
               </div>
               {display.year && (
-                <span className="text-xs text-[#f0ebe0]/40">{display.year}</span>
+                <span className="text-xs text-[#f0eeea]/40">{display.year}</span>
               )}
               {consumeTime && (
-                <span className="text-[10.5px] text-[#f0ebe0]/30">
+                <span className="text-[10.5px] text-[#f0eeea]/30">
                   {consumeTime}
                 </span>
               )}
             </div>
-            <h1 className="text-3xl font-black leading-tight text-[#f0ebe0] mb-2">
+            <h1 className="text-3xl font-black leading-tight text-[#f0eeea] mb-2">
               {display.title}
             </h1>
             {display.original_title && display.original_title !== display.title && (
-              <div className="mb-2 text-[12px] italic text-[#f0ebe0]/30">
+              <div className="mb-2 text-[12px] italic text-[#f0eeea]/30">
                 {display.original_title}
               </div>
             )}
 
             {/* Dual ratings */}
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
               {display.rating != null && display.rating > 0 && (
-                <span className="flex items-center gap-1 text-[#f0ebe0]/50">
-                  <span className="text-[10px] font-semibold uppercase text-[#f0ebe0]/35">
+                <span className="flex items-center gap-1 text-[#f0eeea]/50">
+                  <span className="text-[10px] font-semibold uppercase text-[#f0eeea]/35">
                     {ratingSource}
                   </span>
                   <Star
                     size={12}
                     className="fill-yellow-500 text-yellow-500"
                   />
-                  <span className="text-[14px] font-extrabold text-[#f0ebe0]/60">
+                  <span className="text-[14px] font-extrabold text-[#f0eeea]/60">
                     {(display.rating / 10).toFixed(1)}
                   </span>
                 </span>
               )}
+              <ScoreBadges
+                ratings={display.metadata?.external_ratings as ExternalRatings | undefined}
+              />
               {userRating > 0 && (
                 <span className="flex items-center gap-1 text-[#c5c2bc]">
                   <span className="text-[10px] font-semibold uppercase text-[#c5c2bc]/60">
@@ -389,12 +440,12 @@ export function MediaDetailPanel() {
         <div className="px-4 pb-6 pt-4">
           {/* 2. METADATA */}
           {metaLine.length > 0 && (
-            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[#f0ebe0]/45">
-              <User size={12} className="text-[#f0ebe0]/25" />
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[#f0eeea]/45">
+              <User size={12} className="text-[#f0eeea]/25" />
               {metaLine.map((part, i) => (
                 <span key={i} className="flex items-center gap-1">
-                  {i > 0 && <span className="text-[#f0ebe0]/15">&middot;</span>}
-                  <span className="text-[#f0ebe0]/60">{part}</span>
+                  {i > 0 && <span className="text-[#f0eeea]/15">&middot;</span>}
+                  <span className="text-[#f0eeea]/60">{part}</span>
                 </span>
               ))}
             </div>
@@ -437,24 +488,28 @@ export function MediaDetailPanel() {
           {/* 3c. OUTBOUND LINKS */}
           {outboundLinks.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-1.5">
-              {outboundLinks.map((link) => (
-                <a
-                  key={`${link.label}-${link.url}`}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-md border border-silver/20 bg-transparent px-2.5 py-1 text-[10.5px] font-semibold text-silver transition-colors hover:border-silver/40 hover:bg-silver/mist hover:text-pearl"
-                >
-                  <ExternalLink size={10} />
-                  {link.label}
-                </a>
-              ))}
+              {outboundLinks.map((link) => {
+                const brand = LINK_BRAND_COLORS[link.label] || "#c5c2bc";
+                return (
+                  <a
+                    key={`${link.label}-${link.url}`}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md border bg-transparent px-2.5 py-1 text-[10.5px] font-semibold transition-colors hover:bg-silver/mist"
+                    style={{ borderColor: `${brand}40`, color: brand }}
+                  >
+                    <ExternalLink size={10} />
+                    {link.label}
+                  </a>
+                );
+              })}
             </div>
           )}
 
           {/* 4. TAGLINE */}
           {typeof display.metadata?.tagline === "string" && display.metadata.tagline && (
-            <p className="mb-3 text-[13px] italic text-[#f0ebe0]/35">
+            <p className="mb-3 text-[13px] italic text-[#f0eeea]/35">
               &ldquo;{display.metadata.tagline}&rdquo;
             </p>
           )}
@@ -462,7 +517,7 @@ export function MediaDetailPanel() {
           {/* 5. DESCRIPTION */}
           {display.description && (
             <div className="mb-4">
-              <p className="text-[13px] leading-[1.75] text-[#f0ebe0]/55">
+              <p className="text-[13px] leading-[1.75] text-[#f0eeea]/55">
                 {displayDescription}
                 {descriptionLong && !showFullDescription && "..."}
               </p>
@@ -485,7 +540,7 @@ export function MediaDetailPanel() {
               className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold transition-all ${
                 favorited
                   ? "border border-red-500/30 bg-red-500/[0.12] text-red-400"
-                  : "border border-white/[0.06] bg-white/[0.04] text-[#f0ebe0]/60 hover:bg-white/[0.07]"
+                  : "border border-white/[0.06] bg-white/[0.04] text-[#f0eeea]/60 hover:bg-white/[0.07]"
               }`}
             >
               <Heart
@@ -502,7 +557,7 @@ export function MediaDetailPanel() {
               className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold transition-all ${
                 isWatchedItem
                   ? "border border-green-500/30 bg-green-500/[0.12] text-green-400"
-                  : "border border-white/[0.06] bg-white/[0.04] text-[#f0ebe0]/60 hover:bg-white/[0.07]"
+                  : "border border-white/[0.06] bg-white/[0.04] text-[#f0eeea]/60 hover:bg-white/[0.07]"
               }`}
             >
               <div className={`flex h-[18px] w-[18px] items-center justify-center rounded-full ${
@@ -510,7 +565,7 @@ export function MediaDetailPanel() {
               }`}>
                 <Check
                   size={12}
-                  className={isWatchedItem ? "text-green-400" : "text-[#f0ebe0]/60"}
+                  className={isWatchedItem ? "text-green-400" : "text-[#f0eeea]/60"}
                   strokeWidth={2.5}
                 />
               </div>
@@ -525,7 +580,7 @@ export function MediaDetailPanel() {
               className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold transition-all ${
                 onWatchlist
                   ? "border border-[#c5c2bc]/30 bg-[#c5c2bc]/[0.12] text-[#c5c2bc]"
-                  : "border border-white/[0.06] bg-white/[0.04] text-[#f0ebe0]/60 hover:bg-white/[0.07]"
+                  : "border border-white/[0.06] bg-white/[0.04] text-[#f0eeea]/60 hover:bg-white/[0.07]"
               }`}
             >
               <Clock
@@ -543,7 +598,7 @@ export function MediaDetailPanel() {
           <div className="mb-5">
             <button
               onClick={() => setRatingMode(!ratingMode)}
-              className="flex items-center gap-1.5 text-[12px] font-bold text-[#f0ebe0]/40 hover:text-[#f0ebe0]/60 transition-colors"
+              className="flex items-center gap-1.5 text-[12px] font-bold text-[#f0eeea]/40 hover:text-[#f0eeea]/60 transition-colors"
             >
               <Star size={14} />
               {userRating > 0
@@ -575,14 +630,14 @@ export function MediaDetailPanel() {
           {/* 7. TAGS / THEMES */}
           {display.tags && display.tags.length > 0 && (
             <div className="mb-5">
-              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0ebe0]/30">
+              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
                 Themes & Tags
               </h3>
               <div className="flex flex-wrap gap-[5px]">
                 {display.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full px-[10px] py-[3px] text-[10.5px] font-medium text-[#f0ebe0]/45 border border-white/[0.06] bg-white/[0.02]"
+                    className="rounded-full px-[10px] py-[3px] text-[10.5px] font-medium text-[#f0eeea]/45 border border-white/[0.06] bg-white/[0.02]"
                   >
                     {tag}
                   </span>
@@ -642,21 +697,54 @@ export function MediaDetailPanel() {
             // TV-specific
             if (meta.episode_runtime && typeof meta.episode_runtime === "number")
               details.push({ label: "Episode Runtime", value: `${meta.episode_runtime}min` });
+            if (meta.first_air_date && typeof meta.first_air_date === "string") {
+              const from = (meta.first_air_date as string).slice(0, 4);
+              const to =
+                typeof meta.last_air_date === "string"
+                  ? (meta.last_air_date as string).slice(0, 4)
+                  : "";
+              details.push({
+                label: "Aired",
+                value: to && to !== from ? `${from}–${to}` : from,
+              });
+            }
+            if (meta.season_count && typeof meta.season_count === "number")
+              details.push({ label: "Seasons", value: `${meta.season_count}` });
+
+            // Anime aired range
+            if (display.media_type === "anime" && meta.aired_from && typeof meta.aired_from === "string") {
+              const from = new Date(meta.aired_from as string).getFullYear();
+              const to =
+                typeof meta.aired_to === "string" && meta.aired_to
+                  ? new Date(meta.aired_to as string).getFullYear()
+                  : null;
+              details.push({
+                label: "Aired",
+                value: to && to !== from ? `${from}–${to}` : `${from}${display.status_text === "Currently Airing" ? "–now" : ""}`,
+              });
+            }
+
+            // Awards (from OMDb)
+            const ext = meta.external_ratings as ExternalRatings | undefined;
+            if (ext?.awards)
+              details.push({ label: "Awards", value: ext.awards });
+            if (ext?.imdb_votes)
+              details.push({ label: "IMDb Votes", value: ext.imdb_votes });
 
             if (details.length === 0) return null;
 
             return (
               <div className="mb-5">
-                <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0ebe0]/30">
+                <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
                   Details
                 </h3>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                   {details.map((d) => (
                     <div key={d.label} className="flex flex-col">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#f0ebe0]/25">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#f0eeea]/25">
                         {d.label}
                       </span>
-                      <span className="text-[12px] text-[#f0ebe0]/60">
+                      <span className="text-[12px] text-[#f0eeea]/60">
                         {d.value}
                       </span>
                     </div>
@@ -668,24 +756,28 @@ export function MediaDetailPanel() {
 
           {/* 8. CAST */}
           {display.cast && display.cast.length > 0 && display.media_type !== "book" && (
-            <div className="mb-5">
-              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0ebe0]/30">
-                {display.media_type === "anime" ? "Characters" : "Cast"}
-              </h3>
-              <CastCarousel cast={display.cast} title={display.media_type === "anime" ? "Characters" : "Cast & Crew"} />
+            <div className="mb-2">
+              <CastCarousel
+                cast={display.cast}
+                title={
+                  display.media_type === "anime"
+                    ? "Characters & Voice Actors"
+                    : "Cast"
+                }
+              />
             </div>
           )}
 
           {/* 8. WHERE TO WATCH */}
           {display.where_to_watch && display.where_to_watch.length > 0 && (
             <div className="mb-5">
-              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0ebe0]/30">
+              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
                 {display.media_type === "game" ? "Platforms" : display.media_type === "book" ? "Where to Read" : "Where to Watch"}
               </h3>
               <div className="flex flex-wrap gap-2">
                 {display.where_to_watch.map((w, i) => {
                   const className =
-                    "flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[11px] font-medium text-[#f0ebe0]/60 transition-colors hover:bg-white/[0.06]";
+                    "flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[11px] font-medium text-[#f0eeea]/60 transition-colors hover:bg-white/[0.06]";
                   const inner = (
                     <>
                       {w.logo_url && (
@@ -698,7 +790,7 @@ export function MediaDetailPanel() {
                         />
                       )}
                       {w.provider}
-                      {w.url && <ExternalLink size={10} className="text-[#f0ebe0]/25" />}
+                      {w.url && <ExternalLink size={10} className="text-[#f0eeea]/25" />}
                     </>
                   );
                   return w.url ? (
@@ -724,7 +816,7 @@ export function MediaDetailPanel() {
           {/* 9. VIDEOS */}
           {display.videos && display.videos.length > 0 && (
             <div className="mb-5">
-              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0ebe0]/30">
+              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
                 Videos
               </h3>
               <div
@@ -774,7 +866,7 @@ export function MediaDetailPanel() {
           {/* 10. SEASONS (TV/Anime only) */}
           {display.seasons && display.seasons.length > 0 && display.seasons.some(s => s.number > 0) && (
             <div className="mb-5">
-              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0ebe0]/30">
+              <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
                 Seasons
               </h3>
               <div className="space-y-1.5">
@@ -783,11 +875,11 @@ export function MediaDetailPanel() {
                     key={s.number}
                     className="flex items-center gap-3 rounded-lg border border-white/[0.03] bg-white/[0.015] px-3 py-2 text-[12px]"
                   >
-                    <span className="font-semibold text-[#f0ebe0]/60">{s.name || `Season ${s.number}`}</span>
+                    <span className="font-semibold text-[#f0eeea]/60">{s.name || `Season ${s.number}`}</span>
                     {s.air_date && (
-                      <span className="text-[#f0ebe0]/25">{s.air_date.slice(0, 4)}</span>
+                      <span className="text-[#f0eeea]/25">{s.air_date.slice(0, 4)}</span>
                     )}
-                    <span className="text-[#f0ebe0]/30">{s.episode_count} episodes</span>
+                    <span className="text-[#f0eeea]/30">{s.episode_count} episodes</span>
                   </div>
                 ))}
               </div>
@@ -797,7 +889,7 @@ export function MediaDetailPanel() {
           {/* 11. EXPLORE MORE — cross-media click-around */}
           {exploreItems.length > 0 && (
             <div className="mb-5">
-              <h3 className="mb-1 text-[12px] font-bold uppercase tracking-wider text-[#f0ebe0]/30">
+              <h3 className="mb-1 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
                 Explore more
               </h3>
               <p className="mb-2.5 text-[11px] text-cream/25">
@@ -850,7 +942,7 @@ export function MediaDetailPanel() {
                               sizes="120px"
                             />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-fey-surface text-[10px] text-[#f0ebe0]/20">
+                            <div className="flex h-full w-full items-center justify-center bg-fey-surface text-[10px] text-[#f0eeea]/20">
                               {rel.title}
                             </div>
                           )}
@@ -880,7 +972,7 @@ export function MediaDetailPanel() {
           )}
           <RabbitRoom media={display} />
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

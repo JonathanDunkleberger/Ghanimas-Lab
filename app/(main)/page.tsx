@@ -1,13 +1,16 @@
 "use client";
 
+import { useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useQuery } from "@tanstack/react-query";
-import { Tv, Gamepad2, BookOpen, Monitor, Film, Flame, Trophy, Sparkles, Zap, Rocket } from "lucide-react";
+import { Tv, Gamepad2, BookOpen, Monitor, Film, Flame, Trophy, Sparkles, Zap, Rocket, Timer, Star, RefreshCw } from "lucide-react";
 import { HeroBanner } from "@/components/dashboard/HeroBanner";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { MediaCarousel } from "@/components/media/MediaCarousel";
 import { useAppStore, type MediaItem } from "@/stores/app-store";
+import { useMediaStore } from "@/stores/media-store";
+import { buildActivityEntries, buildHomeStats } from "@/lib/library-stats";
 import type { MediaType } from "@/lib/constants";
 
 /* Icon map per media type */
@@ -48,7 +51,58 @@ export default function HomePage() {
 
   const firstName = user?.firstName || user?.username || "Explorer";
 
-  const { data: carousels = [], isLoading } = useQuery<CarouselData[]>({
+  const favorites = useMediaStore((s) => s.favorites);
+  const watched = useMediaStore((s) => s.watched);
+  const watchlist = useMediaStore((s) => s.watchlist);
+  const ratings = useMediaStore((s) => s.ratings);
+  const items = useMediaStore((s) => s.items);
+  const history = useMediaStore((s) => s.history);
+
+  const snapshot = useMemo(
+    () => ({ favorites, watched, watchlist, ratings, items, history }),
+    [favorites, watched, watchlist, ratings, items, history]
+  );
+  const homeStats = useMemo(() => buildHomeStats(snapshot), [snapshot]);
+  const activities = useMemo(
+    () => buildActivityEntries(snapshot, 6),
+    [snapshot]
+  );
+
+  const statCards = useMemo(
+    () => [
+      {
+        label: "Hours This Week",
+        value: homeStats.hoursThisWeek > 0 ? homeStats.hoursThisWeek : "—",
+        icon: Timer,
+        color: "#c5c2bc",
+        sub: homeStats.hoursThisWeek > 0 ? "estimated from completions" : "Mark titles as watched",
+      },
+      {
+        label: "Titles Completed",
+        value: homeStats.titlesCompleted,
+        icon: Trophy,
+        color: "#8f9e90",
+        sub: homeStats.titlesCompleted > 0 ? "all time" : "None yet",
+      },
+      {
+        label: "Current Streak",
+        value: homeStats.streak,
+        icon: Flame,
+        color: "#8aa4bc",
+        sub: "days in a row",
+      },
+      {
+        label: "Avg Rating",
+        value: homeStats.avgRating != null ? homeStats.avgRating.toFixed(1) : "—",
+        icon: Star,
+        color: "#a66b6b",
+        sub: homeStats.avgRating != null ? "across all media" : "Rate something!",
+      },
+    ],
+    [homeStats]
+  );
+
+  const { data: carousels = [], isLoading, isError, refetch } = useQuery<CarouselData[]>({
     queryKey: ["home-carousels"],
     queryFn: async () => {
       const res = await fetch("/api/home-carousels");
@@ -61,11 +115,30 @@ export default function HomePage() {
 
   return (
     <div className="animate-fadeIn">
-      <HeroBanner userName={firstName} activeCount={3} />
+      <HeroBanner
+        userName={firstName}
+        activeCount={watchlist.length}
+      />
 
       {/* Carousels */}
       <div className="space-y-2">
-        {isLoading ? (
+        {isError ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.04] bg-white/[0.015] px-6 py-14 text-center">
+            <p className="text-[14px] font-semibold text-cream/70">
+              The lab shelves didn&apos;t load
+            </p>
+            <p className="mt-1 max-w-[360px] text-[12px] text-cream/35">
+              Something went wrong fetching trending titles. Check your
+              connection and try again.
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-silver/20 px-4 py-2 text-[11.5px] font-semibold text-silver transition-colors hover:bg-silver/mist"
+            >
+              <RefreshCw size={12} /> Retry
+            </button>
+          </div>
+        ) : isLoading ? (
           /* Skeleton loaders while data loads */
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="mb-8">
@@ -96,8 +169,8 @@ export default function HomePage() {
 
       {/* Activity + Stats grid */}
       <div className="mt-0.5 grid grid-cols-1 gap-2.5 lg:grid-cols-2">
-        <ActivityFeed activities={[]} />
-        <StatsCards />
+        <ActivityFeed activities={activities} />
+        <StatsCards stats={statCards} />
       </div>
     </div>
   );

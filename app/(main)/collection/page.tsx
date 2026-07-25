@@ -17,6 +17,7 @@ import { MediaGrid } from "@/components/media/MediaGrid";
 import { useAppStore, type MediaItem } from "@/stores/app-store";
 import { useMediaStore } from "@/stores/media-store";
 import { CatLogo } from "@/components/shared/CatLogo";
+import { estimateItemHours } from "@/lib/library-stats";
 import { SignInButton, useUser } from "@clerk/nextjs";
 
 const LIST_TABS = [
@@ -82,16 +83,43 @@ export default function CollectionPage() {
   const activeIds = activeList === "favorites" ? favorites : activeList === "watched" ? watched : watchlist;
 
   // Resolve IDs to items + apply filter
-  const displayItems = useMemo(() => {
+  const { displayItems, unresolvedCount } = useMemo(() => {
     const items: MediaItem[] = [];
+    let unresolved = 0;
     for (const id of activeIds) {
       const item = allItems.get(id);
       if (item) items.push(item);
+      else unresolved++;
     }
-    return mediaFilter === "all"
-      ? items
-      : items.filter((i) => i.media_type === mediaFilter);
+    return {
+      displayItems:
+        mediaFilter === "all"
+          ? items
+          : items.filter((i) => i.media_type === mediaFilter),
+      unresolvedCount: unresolved,
+    };
   }, [activeIds, allItems, mediaFilter]);
+
+  // Library depth stats — estimated hours + top genre across watched titles
+  const libraryStats = useMemo(() => {
+    const watchedItems = watched
+      .map((id) => allItems.get(id))
+      .filter(Boolean) as MediaItem[];
+    if (watchedItems.length === 0 && favorites.length === 0) return null;
+
+    const hours = Math.round(
+      watchedItems.reduce((sum, i) => sum + estimateItemHours(i), 0)
+    );
+    const genreCounts: Record<string, number> = {};
+    for (const i of watchedItems) {
+      for (const g of i.genres || []) {
+        genreCounts[g] = (genreCounts[g] || 0) + 1;
+      }
+    }
+    const topGenre = Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const typeCount = new Set(watchedItems.map((i) => i.media_type)).size;
+    return { hours, topGenre, typeCount, completed: watchedItems.length };
+  }, [watched, favorites.length, allItems]);
 
   // Counts per list
   const counts = {
@@ -132,9 +160,30 @@ export default function CollectionPage() {
           </span>
         )}
       </div>
-      <p className="mb-5 text-[12.5px] text-cream/30">
+      <p className="mb-4 text-[12.5px] text-cream/30">
         Your favorites, watched items, and watchlist — all in one place.
       </p>
+
+      {/* Library depth strip */}
+      {libraryStats && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {libraryStats.completed > 0 && (
+            <span className="rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-1.5 text-[11px] text-cream/45">
+              <span className="font-bold text-silver">~{libraryStats.hours.toLocaleString()}h</span> of stories finished
+            </span>
+          )}
+          {libraryStats.topGenre && (
+            <span className="rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-1.5 text-[11px] text-cream/45">
+              Top genre <span className="font-bold text-silver">{libraryStats.topGenre}</span>
+            </span>
+          )}
+          {libraryStats.typeCount > 1 && (
+            <span className="rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-1.5 text-[11px] text-cream/45">
+              Across <span className="font-bold text-silver">{libraryStats.typeCount} mediums</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* List tabs */}
       <div className="mb-4 flex gap-1.5">
@@ -154,7 +203,7 @@ export default function CollectionPage() {
                 background: isActive
                   ? `${tab.color}12`
                   : "rgba(255,255,255,0.02)",
-                color: isActive ? tab.color : "rgba(224,218,206,0.35)",
+                color: isActive ? tab.color : "rgba(240,238,234,0.35)",
                 border: isActive
                   ? `1px solid ${tab.color}25`
                   : "1px solid rgba(255,255,255,0.04)",
@@ -167,7 +216,7 @@ export default function CollectionPage() {
                   className="ml-0.5 rounded-full px-1.5 py-[1px] text-[10px] font-bold"
                   style={{
                     background: isActive ? `${tab.color}18` : "rgba(255,255,255,0.04)",
-                    color: isActive ? tab.color : "rgba(224,218,206,0.25)",
+                    color: isActive ? tab.color : "rgba(240,238,234,0.25)",
                   }}
                 >
                   {count}
@@ -191,7 +240,7 @@ export default function CollectionPage() {
                 background: isActive
                   ? "rgba(197,194,188,0.1)"
                   : "rgba(255,255,255,0.02)",
-                color: isActive ? "#c5c2bc" : "rgba(224,218,206,0.3)",
+                color: isActive ? "#c5c2bc" : "rgba(240,238,234,0.3)",
                 border: isActive
                   ? "1px solid rgba(197,194,188,0.15)"
                   : "1px solid rgba(255,255,255,0.03)",
@@ -206,7 +255,15 @@ export default function CollectionPage() {
 
       {/* Content */}
       {displayItems.length > 0 ? (
-        <MediaGrid items={displayItems} onItemClick={setSelectedItem} />
+        <>
+          <MediaGrid items={displayItems} onItemClick={setSelectedItem} />
+          {unresolvedCount > 0 && mediaFilter === "all" && (
+            <p className="mt-4 text-center text-[11px] text-cream/20">
+              {unresolvedCount} saved item{unresolvedCount !== 1 ? "s" : ""} couldn&apos;t
+              be displayed — open them from search to restore their details.
+            </p>
+          )}
+        </>
       ) : activeIds.length > 0 ? (
         <div className="py-16 text-center">
           <activeTab.icon size={32} className="mx-auto mb-3 text-cream/10" />

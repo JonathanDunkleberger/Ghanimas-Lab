@@ -2,15 +2,24 @@ import { Metadata } from "next";
 
 interface Props {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
-  // slug format: userId-period e.g. "abc123-2025"
-  const ogUrl = `/api/og?title=Wrapped&hours=847&titles=42&personality=The%20Worldbuilder&period=2025`;
+function str(v: string | string[] | undefined): string | undefined {
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const sp = await searchParams;
+  const hours = str(sp.hours) || "0";
+  const titles = str(sp.titles) || "0";
+  const personality = str(sp.personality) || "The Explorer";
+  const period = str(sp.period) || String(new Date().getFullYear());
+
+  const ogUrl = `/api/og?title=Wrapped&hours=${encodeURIComponent(hours)}&titles=${encodeURIComponent(titles)}&personality=${encodeURIComponent(personality)}&period=${encodeURIComponent(period)}`;
   return {
-    title: `Ghanima's Lab Wrapped — ${slug}`,
-    description: "Check out my entertainment year in review on Ghanima's Lab.",
+    title: `Ghanima's Lab Wrapped — ${period}`,
+    description: "My year in film, TV, anime, games, and books — summarized.",
     openGraph: {
       title: `Ghanima's Lab Wrapped`,
       description: "My year in entertainment, summarized.",
@@ -25,10 +34,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function PublicWrappedPage({ params }: Props) {
-  const { slug } = await params;
+export default async function PublicWrappedPage({ searchParams }: Props) {
+  const sp = await searchParams;
+  const hours = str(sp.hours);
+  const titles = str(sp.titles);
+  const personality = str(sp.personality);
+  const genre = str(sp.genre);
+  const rating = str(sp.rating);
+  const period = str(sp.period) || String(new Date().getFullYear());
+  const hasStats = Boolean(hours && titles);
 
-  // Shared wrapped data — fetched from Supabase when sharing API is available
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-fey-black px-4 text-cream">
       {/* Glow */}
@@ -45,40 +60,58 @@ export default async function PublicWrappedPage({ params }: Props) {
         <div className="mb-4 flex items-center justify-center gap-2">
           <div className="h-6 w-6 rounded-full bg-gradient-to-br from-gold to-[#8b8882]" />
           <span className="text-[11px] font-extrabold uppercase tracking-[4px] text-gold">
-            Ghanima's Lab
+            Ghanima&apos;s Lab
           </span>
         </div>
 
         {/* Title */}
         <h1 className="mb-2 text-4xl font-black gradient-gold">
-          Wrapped
+          Wrapped {period}
         </h1>
         <p className="mb-8 text-[13px] text-cream/30">
-          Shared from Ghanima&apos;s Lab · <span className="text-cream/40">{slug}</span>
+          Shared from Ghanima&apos;s Lab
         </p>
 
         {/* Wrapped preview card */}
         <div
           className="rounded-2xl border border-gold/[0.07] p-8"
           style={{
-            background: "linear-gradient(135deg, rgba(20,20,28,0.9), rgba(14,14,20,0.95))",
+            background: "linear-gradient(135deg, rgba(24,24,27,0.9), rgba(18,18,20,0.95))",
           }}
         >
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[3px] text-gold/50">
-            Total Hours
-          </div>
-          <div className="text-[64px] font-black leading-none gradient-gold">
-            847
-          </div>
-          <div className="mt-1 text-[16px] font-light text-cream">
-            hours consumed
-          </div>
-          <div className="mt-4 text-[12px] text-cream/30">
-            42 titles · Avg 8.3/10
-          </div>
-          <div className="mt-4 text-[20px] font-black text-cream">
-            &ldquo;The Worldbuilder&rdquo;
-          </div>
+          {hasStats ? (
+            <>
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-[3px] text-gold/50">
+                Total Hours
+              </div>
+              <div className="text-[64px] font-black leading-none gradient-gold">
+                {hours}
+              </div>
+              <div className="mt-1 text-[16px] font-light text-cream">
+                hours of stories
+              </div>
+              <div className="mt-4 text-[12px] text-cream/30">
+                {titles} titles
+                {rating ? ` · Avg ${rating}/10` : ""}
+                {genre ? ` · Top genre ${genre}` : ""}
+              </div>
+              {personality && (
+                <div className="mt-4 text-[20px] font-black text-cream">
+                  &ldquo;{personality}&rdquo;
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-[3px] text-gold/50">
+                Your year, measured
+              </div>
+              <p className="mx-auto max-w-[320px] text-[13px] leading-[1.7] text-cream/50">
+                Films, TV, anime, games, and books — tracked in one place,
+                summarized once a year. Build yours in the lab.
+              </p>
+            </>
+          )}
         </div>
 
         {/* CTA */}
@@ -89,7 +122,7 @@ export default async function PublicWrappedPage({ params }: Props) {
             background: "linear-gradient(135deg, #c5c2bc, #8b8882)",
           }}
         >
-          Create Your Own on Ghanima's Lab
+          Create Your Own on Ghanima&apos;s Lab
         </a>
       </div>
     </div>

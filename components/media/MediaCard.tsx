@@ -15,6 +15,7 @@ interface MediaCardProps {
 
 export function MediaCard({ item, onClick }: MediaCardProps) {
   const [hovered, setHovered] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
   const favorites = useMediaStore((s) => s.favorites);
   const watched = useMediaStore((s) => s.watched);
   const toggleFavorite = useMediaStore((s) => s.toggleFavorite);
@@ -49,13 +50,14 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
         }}
         whileTap={{ scale: 0.98, transition: { duration: 0.1 } }}
       >
-        {item.cover_image_url ? (
+        {item.cover_image_url && !imgFailed ? (
           <Image
             src={item.cover_image_url}
             alt={item.title}
             fill
             className="object-cover"
             sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 172px"
+            onError={() => setImgFailed(true)}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-fey-surface">
@@ -68,8 +70,8 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
           className="absolute inset-0"
           animate={{
             background: hovered
-              ? "linear-gradient(180deg, transparent 15%, rgba(10,10,15,0.96) 100%)"
-              : "linear-gradient(180deg, transparent 40%, rgba(10,10,15,0.85) 100%)",
+              ? "linear-gradient(180deg, transparent 15%, rgba(12,12,14,0.96) 100%)"
+              : "linear-gradient(180deg, transparent 40%, rgba(12,12,14,0.85) 100%)",
           }}
           transition={{ duration: 0.35 }}
         />
@@ -78,7 +80,7 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
         <div
           className="absolute left-[7px] top-[7px] flex items-center gap-[3px] rounded-[5px] px-[7px] py-[2px]"
           style={{
-            background: "rgba(10,10,15,0.65)",
+            background: "rgba(12,12,14,0.65)",
             backdropFilter: "blur(6px)",
             border: `1px solid ${tc}25`,
           }}
@@ -112,7 +114,7 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
                 }}
                 className="flex h-[26px] w-[26px] items-center justify-center rounded-full"
                 style={{
-                  background: "rgba(10,10,15,0.65)",
+                  background: "rgba(12,12,14,0.65)",
                   backdropFilter: "blur(6px)",
                   border: "1px solid rgba(255,255,255,0.07)",
                 }}
@@ -140,7 +142,7 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
                     : ""
                 }`}
                 style={!isWatched ? {
-                  background: "rgba(10,10,15,0.65)",
+                  background: "rgba(12,12,14,0.65)",
                   backdropFilter: "blur(6px)",
                   border: "1px solid rgba(255,255,255,0.07)",
                 } : {
@@ -179,9 +181,9 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
                 </span>
               </span>
             )}
-            {item.match != null && item.match >= 90 && (
+            {item.match != null && item.match >= 60 && (
               <span className="text-[9.5px] font-semibold text-match">
-                {item.match}%
+                {item.match}% match
               </span>
             )}
           </div>

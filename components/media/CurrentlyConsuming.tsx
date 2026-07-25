@@ -34,7 +34,7 @@ function CurrentCard({
       className="flex cursor-pointer gap-3 overflow-hidden rounded-xl p-3 transition-all duration-300"
       style={{
         background:
-          "linear-gradient(135deg, rgba(18,18,24,0.9), rgba(12,12,18,0.95))",
+          "linear-gradient(135deg, rgba(18,18,20,0.9), rgba(12,12,14,0.95))",
         border: hovered
           ? `1px solid ${tc}30`
           : "1px solid rgba(255,255,255,0.035)",

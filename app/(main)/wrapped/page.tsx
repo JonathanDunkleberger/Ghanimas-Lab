@@ -1,94 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
+import { Compass } from "lucide-react";
 import { CatLogo } from "@/components/shared/CatLogo";
 import { WrappedSlideshow } from "@/components/wrapped/WrappedSlideshow";
-import type { WrappedData } from "@/stores/app-store";
+import { useMediaStore } from "@/stores/media-store";
+import { useToast } from "@/components/shared/Toast";
+import { buildWrappedData } from "@/lib/library-stats";
 import type { WrappedPeriod } from "@/lib/constants";
-
-// Demo wrapped data — powered by user's local library stats
-const DEMO_DATA: Record<WrappedPeriod, WrappedData> = {
-  yearly: {
-    period: "yearly",
-    period_label: "2025",
-    totalHours: 847,
-    titlesCompleted: 42,
-    topGenre: "Sci-Fi",
-    longestStreak: 23,
-    personality: "The Worldbuilder",
-    personalityDesc:
-      "You gravitate toward intricate universes with deep lore. From Elden Ring to Dune, you crave worlds that reward exploration and curiosity.",
-    breakdown: [
-      { label: "Anime", hours: 312, pct: 37, type: "anime" },
-      { label: "Games", hours: 268, pct: 32, type: "game" },
-      { label: "Books", hours: 156, pct: 18, type: "book" },
-      { label: "TV / Film", hours: 111, pct: 13, type: "tv" },
-    ],
-    topTitles: [
-      { title: "Elden Ring", type: "game", hours: 127 },
-      { title: "Attack on Titan", type: "anime", hours: 89 },
-      { title: "Dune Series", type: "book", hours: 64 },
-      { title: "Baldur's Gate 3", type: "game", hours: 58 },
-      { title: "Vinland Saga", type: "anime", hours: 43 },
-    ],
-    fastestBinge: { title: "Frieren", hours: 12, days: 2 },
-    genreExplored: 14,
-    avgRating: 8.3,
-    topMonth: { month: "March", hours: 112 },
-    crossMediumFav: { title: "Cyberpunk: Edgerunners", type: "anime" },
-  },
-  monthly: {
-    period: "monthly",
-    period_label: "January 2025",
-    totalHours: 68,
-    titlesCompleted: 5,
-    topGenre: "Fantasy",
-    longestStreak: 9,
-    personality: "The Marathoner",
-    personalityDesc:
-      "This month you went deep. Long series, long games, long reads — you committed fully to every title you touched.",
-    breakdown: [
-      { label: "Games", hours: 32, pct: 47, type: "game" },
-      { label: "Anime", hours: 24, pct: 35, type: "anime" },
-      { label: "Books", hours: 12, pct: 18, type: "book" },
-    ],
-    topTitles: [
-      { title: "Metaphor: ReFantazio", type: "game", hours: 28 },
-      { title: "Solo Leveling S2", type: "anime", hours: 14 },
-      { title: "Fourth Wing", type: "book", hours: 12 },
-    ],
-    fastestBinge: { title: "Solo Leveling S2", hours: 6, days: 1 },
-    genreExplored: 5,
-    avgRating: 8.7,
-    topMonth: undefined,
-    crossMediumFav: undefined,
-  },
-  weekly: {
-    period: "weekly",
-    period_label: "Week of Jan 6",
-    totalHours: 18,
-    titlesCompleted: 1,
-    topGenre: "RPG",
-    longestStreak: 7,
-    personality: "The Focused",
-    personalityDesc:
-      "One week, one mission. You zeroed in on a single experience and gave it everything.",
-    breakdown: [
-      { label: "Games", hours: 14, pct: 78, type: "game" },
-      { label: "Anime", hours: 4, pct: 22, type: "anime" },
-    ],
-    topTitles: [
-      { title: "Metaphor: ReFantazio", type: "game", hours: 14 },
-      { title: "Solo Leveling S2", type: "anime", hours: 4 },
-    ],
-    fastestBinge: undefined,
-    genreExplored: 2,
-    avgRating: 9.0,
-    topMonth: undefined,
-    crossMediumFav: undefined,
-  },
-};
 
 const PERIOD_OPTIONS: { value: WrappedPeriod; label: string }[] = [
   { value: "weekly", label: "Week" },
@@ -98,22 +19,53 @@ const PERIOD_OPTIONS: { value: WrappedPeriod; label: string }[] = [
 
 export default function WrappedPage() {
   const [period, setPeriod] = useState<WrappedPeriod>("yearly");
-  const data = DEMO_DATA[period];
+  const { toast } = useToast();
+
+  const favorites = useMediaStore((s) => s.favorites);
+  const watched = useMediaStore((s) => s.watched);
+  const watchlist = useMediaStore((s) => s.watchlist);
+  const ratings = useMediaStore((s) => s.ratings);
+  const items = useMediaStore((s) => s.items);
+  const history = useMediaStore((s) => s.history);
+  const hydrated = useMediaStore((s) => s._hydrated);
+
+  const data = useMemo(
+    () =>
+      buildWrappedData(
+        { favorites, watched, watchlist, ratings, items, history },
+        period
+      ),
+    [favorites, watched, watchlist, ratings, items, history, period]
+  );
 
   const handleShare = useCallback(() => {
-    // Copies current URL — will generate OG share image in a future release
-    navigator.clipboard?.writeText(window.location.href);
-  }, []);
+    if (!data) return;
+    // Stats travel in the URL — the share page and OG image render them
+    // without needing an account or a database.
+    const params = new URLSearchParams({
+      hours: String(data.totalHours),
+      titles: String(data.titlesCompleted),
+      personality: data.personality,
+      genre: data.topGenre,
+      period: data.period_label,
+    });
+    if (data.avgRating > 0) params.set("rating", data.avgRating.toFixed(1));
+    const url = `${window.location.origin}/wrapped/share?${params.toString()}`;
+    navigator.clipboard
+      ?.writeText(url)
+      .then(() => toast("Share link copied to clipboard", "success"))
+      .catch(() => toast("Couldn't copy — your browser blocked it", "error"));
+  }, [data, toast]);
 
   return (
     <div className="animate-fadeIn pt-3.5">
       <div className="mb-6 text-center">
         <CatLogo size={38} />
         <h1 className="mt-1.5 text-4xl font-black leading-tight tracking-tight gradient-gold">
-          Wrapped {data.period_label}
+          {data ? `Wrapped ${data.period_label}` : "Your Wrapped"}
         </h1>
         <p className="mt-[5px] text-[12.5px] text-cream/30">
-          Your {period === "yearly" ? "year" : period === "monthly" ? "month" : "week"} in entertainment, summarized.
+          Your {period === "yearly" ? "year" : period === "monthly" ? "month" : "week"} in film, TV, anime, games, and books.
         </p>
 
         {/* Period selector */}
@@ -124,7 +76,7 @@ export default function WrappedPage() {
               onClick={() => setPeriod(opt.value)}
               className="relative rounded-md px-4 py-1.5 text-[11.5px] font-semibold transition-colors"
               style={{
-                color: period === opt.value ? "#0a0a0f" : "rgba(224,218,206,0.4)",
+                color: period === opt.value ? "#0c0c0e" : "rgba(240,238,234,0.4)",
               }}
               whileTap={{ scale: 0.95 }}
             >
@@ -142,7 +94,41 @@ export default function WrappedPage() {
         </div>
       </div>
 
-      <WrappedSlideshow data={data} onShare={handleShare} />
+      {data ? (
+        <WrappedSlideshow data={data} onShare={handleShare} />
+      ) : (
+        <div className="mx-auto max-w-[500px]">
+          <div
+            className="flex min-h-[400px] flex-col items-center justify-center rounded-modal border border-silver/[0.07] p-[30px] text-center"
+            style={{
+              background: "linear-gradient(135deg, rgba(18,18,20,0.9), rgba(12,12,14,0.95))",
+            }}
+          >
+            <div className="opacity-30">
+              <CatLogo size={56} />
+            </div>
+            <h2 className="mt-4 text-[20px] font-black text-cream">
+              {hydrated ? "Your story starts here" : "Loading your library..."}
+            </h2>
+            {hydrated && (
+              <>
+                <p className="mt-2 max-w-[340px] text-[12.5px] leading-[1.7] text-cream/40">
+                  Wrapped is built from what you actually watch, play, and read.
+                  Favorite a few titles and mark what you&apos;ve finished — Ghanima
+                  will keep the ledger.
+                </p>
+                <Link
+                  href="/"
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[12px] font-bold text-fey-black transition-transform active:scale-[0.96]"
+                  style={{ background: "linear-gradient(135deg, #c5c2bc, #8b8882)" }}
+                >
+                  <Compass size={13} /> Start exploring
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

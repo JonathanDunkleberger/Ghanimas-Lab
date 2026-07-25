@@ -78,7 +78,7 @@ export function CSVUploader({ platform, onFileLoaded }: CSVUploaderProps) {
             borderColor: isDragging ? `${config.color}50` : "rgba(255,255,255,0.06)",
             background: isDragging
               ? `${config.color}05`
-              : "rgba(14,14,20,0.5)",
+              : "rgba(18,18,20,0.5)",
           }}
           onDragOver={(e) => {
             e.preventDefault();

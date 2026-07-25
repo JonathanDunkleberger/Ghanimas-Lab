@@ -33,7 +33,7 @@ export function WrappedSlideshow({ data, onShare }: WrappedSlideshowProps) {
   const slideBase =
     "relative flex min-h-[400px] flex-col items-center justify-center overflow-hidden rounded-[18px] border border-gold/[0.07] p-[30px] text-center";
   const slideBg =
-    "linear-gradient(135deg, rgba(20,20,28,0.9), rgba(14,14,20,0.95))";
+    "linear-gradient(135deg, rgba(24,24,27,0.9), rgba(18,18,20,0.95))";
 
   const slides = [
     // Slide 0 — Welcome / Period intro
@@ -142,7 +142,7 @@ export function WrappedSlideshow({ data, onShare }: WrappedSlideshowProps) {
               >
                 <span
                   className="min-w-[30px] text-right text-[20px] font-black"
-                  style={{ color: i === 0 ? "#c5c2bc" : "rgba(224,218,206,0.12)" }}
+                  style={{ color: i === 0 ? "#c5c2bc" : "rgba(240,238,234,0.12)" }}
                 >
                   #{i + 1}
                 </span>
@@ -348,7 +348,7 @@ export function WrappedSlideshow({ data, onShare }: WrappedSlideshowProps) {
           style={{
             background: step === 0 ? "rgba(255,255,255,0.015)" : "rgba(197,194,188,0.05)",
             borderColor: step === 0 ? "rgba(255,255,255,0.02)" : "rgba(197,194,188,0.1)",
-            color: step === 0 ? "rgba(224,218,206,0.12)" : "#c5c2bc",
+            color: step === 0 ? "rgba(240,238,234,0.12)" : "#c5c2bc",
           }}
           whileTap={{ scale: 0.95 }}
         >
@@ -360,7 +360,7 @@ export function WrappedSlideshow({ data, onShare }: WrappedSlideshowProps) {
           className="flex items-center gap-1 rounded-[9px] border-none px-4 py-[9px] text-[11.5px] font-bold transition-colors disabled:cursor-default"
           style={{
             background: step === slides.length - 1 ? "rgba(255,255,255,0.015)" : "linear-gradient(135deg, #c5c2bc, #8b8882)",
-            color: step === slides.length - 1 ? "rgba(224,218,206,0.12)" : "#0a0a0f",
+            color: step === slides.length - 1 ? "rgba(240,238,234,0.12)" : "#0c0c0e",
           }}
           whileTap={{ scale: 0.95 }}
         >

@@ -20,7 +20,7 @@ export function PlatformCard({ platform, selected, onClick }: PlatformCardProps)
         borderColor: selected ? `${config.color}40` : "rgba(255,255,255,0.04)",
         background: selected
           ? `linear-gradient(135deg, ${config.color}10, ${config.color}05)`
-          : "linear-gradient(135deg, rgba(18,18,24,0.85), rgba(12,12,18,0.92))",
+          : "linear-gradient(135deg, rgba(18,18,20,0.85), rgba(12,12,14,0.92))",
         boxShadow: selected ? `0 0 20px ${config.color}10` : "none",
       }}
       whileHover={{ scale: 1.03, y: -2 }}

@@ -18,7 +18,7 @@ export function TasteRadar({ data }: TasteRadarProps) {
 
   return (
     <div className="rounded-xl border border-white/[0.04] p-5"
-      style={{ background: "linear-gradient(135deg, rgba(18,18,24,0.9), rgba(12,12,18,0.95))" }}
+      style={{ background: "linear-gradient(135deg, rgba(18,18,20,0.9), rgba(12,12,14,0.95))" }}
     >
       <h3 className="mb-3 text-center text-[13px] font-bold text-cream">Your Taste Profile</h3>
       <ResponsiveContainer width="100%" height={250}>
@@ -29,7 +29,7 @@ export function TasteRadar({ data }: TasteRadarProps) {
           />
           <PolarAngleAxis
             dataKey="dimension"
-            tick={{ fill: "rgba(240,235,224,0.35)", fontSize: 10 }}
+            tick={{ fill: "rgba(240,238,234,0.35)", fontSize: 10 }}
           />
           <PolarRadiusAxis
             tick={false}

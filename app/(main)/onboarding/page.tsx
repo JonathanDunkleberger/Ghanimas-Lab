@@ -16,6 +16,7 @@ import {
 import { MEDIA_TYPES, type MediaType } from "@/lib/constants";
 import { CatLogo } from "@/components/shared/CatLogo";
 import { ImportWizard } from "@/components/imports/ImportWizard";
+import { useMediaStore } from "@/stores/media-store";
 import type { MediaItem } from "@/stores/app-store";
 
 const STEPS = [
@@ -83,9 +84,16 @@ export default function OnboardingPage() {
   }, [step, selectedTypes]);
 
   const handleFinish = useCallback(() => {
-    // Preferences will persist to user profile once onboarding API is wired up
+    // Persist seed favorites into the local library so the collection,
+    // For You, and Wrapped all start with real signal.
+    const store = useMediaStore.getState();
+    for (const item of seedFavorites) {
+      if (!store.isFavorite(item.id)) {
+        store.toggleFavorite(item.id, item);
+      }
+    }
     router.push("/");
-  }, [router]);
+  }, [router, seedFavorites]);
 
   return (
     <div className="animate-fadeIn mx-auto max-w-[640px] py-8">
@@ -93,7 +101,7 @@ export default function OnboardingPage() {
       <div className="mb-8 text-center">
         <CatLogo size={42} />
         <h1 className="mt-2 text-3xl font-black gradient-gold">
-          Welcome to Ghanima's Lab
+          Welcome to Ghanima&apos;s Lab
         </h1>
         <p className="mt-1 text-[13px] text-cream/35">
           Let&apos;s set up your entertainment profile
@@ -113,7 +121,7 @@ export default function OnboardingPage() {
                     : i === step
                     ? "linear-gradient(135deg, #c5c2bc, #8b8882)"
                     : "rgba(255,255,255,0.04)",
-                color: i <= step ? "#0a0a0f" : "rgba(224,218,206,0.3)",
+                color: i <= step ? "#0c0c0e" : "rgba(240,238,234,0.3)",
               }}
             >
               {i < step ? <Check size={12} /> : i + 1}
@@ -182,7 +190,7 @@ export default function OnboardingPage() {
                         style={{
                           color: selected
                             ? config.color
-                            : "rgba(224,218,206,0.25)",
+                            : "rgba(240,238,234,0.25)",
                         }}
                       />
                       <span
@@ -190,7 +198,7 @@ export default function OnboardingPage() {
                         style={{
                           color: selected
                             ? config.color
-                            : "rgba(224,218,206,0.5)",
+                            : "rgba(240,238,234,0.5)",
                         }}
                       >
                         {config.label}
@@ -251,7 +259,7 @@ export default function OnboardingPage() {
                         style={{
                           borderColor: config?.border || "rgba(255,255,255,0.1)",
                           background: config?.bg || "rgba(255,255,255,0.04)",
-                          color: config?.color || "#f0ebe0",
+                          color: config?.color || "#f0eeea",
                         }}
                       >
                         <Heart size={9} className="fill-current" />

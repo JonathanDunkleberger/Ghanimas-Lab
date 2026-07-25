@@ -95,7 +95,7 @@ export function ImportWizard({ onComplete, onClose }: ImportWizardProps) {
       animate={{ opacity: 1 }}
       className="rounded-2xl border border-gold/[0.08] overflow-hidden"
       style={{
-        background: "linear-gradient(135deg, rgba(20,20,28,0.98), rgba(14,14,20,0.99))",
+        background: "linear-gradient(135deg, rgba(24,24,27,0.98), rgba(18,18,20,0.99))",
       }}
     >
       {/* Header */}
@@ -120,7 +120,7 @@ export function ImportWizard({ onComplete, onClose }: ImportWizardProps) {
                 className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold"
                 style={{
                   background: i <= step ? "rgba(197,194,188,0.15)" : "rgba(255,255,255,0.04)",
-                  color: i <= step ? "#c5c2bc" : "rgba(240,235,224,0.25)",
+                  color: i <= step ? "#c5c2bc" : "rgba(240,238,234,0.25)",
                   border: i === step ? "1px solid rgba(197,194,188,0.3)" : "1px solid transparent",
                 }}
               >
@@ -128,7 +128,7 @@ export function ImportWizard({ onComplete, onClose }: ImportWizardProps) {
               </div>
               <span
                 className="text-[10.5px] font-medium"
-                style={{ color: i <= step ? "#c5c2bc" : "rgba(240,235,224,0.2)" }}
+                style={{ color: i <= step ? "#c5c2bc" : "rgba(240,238,234,0.2)" }}
               >
                 {label}
               </span>

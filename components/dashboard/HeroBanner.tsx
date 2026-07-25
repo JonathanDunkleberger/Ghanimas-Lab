@@ -13,13 +13,13 @@ export function HeroBanner({ userName, activeCount = 0 }: HeroBannerProps) {
   return (
     <div className="relative mb-8 overflow-hidden rounded-2xl border border-gold/[0.05]"
       style={{
-        background: "linear-gradient(135deg, rgba(18,16,28,1), rgba(24,20,34,1))",
+        background: "linear-gradient(135deg, #121214, #18181b)",
         height: 224,
       }}
     >
-      {/* Radial glows */}
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 75% 50%, rgba(197,194,188,0.08), transparent 60%)" }} />
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 20% 80%, rgba(123,158,201,0.05), transparent 60%)" }} />
+      {/* Radial glows — pearl undercoat + a whisper of nose blush */}
+      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 75% 50%, rgba(240,238,234,0.07), transparent 60%)" }} />
+      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 20% 80%, rgba(166,107,107,0.045), transparent 60%)" }} />
 
       {/* Content */}
       <div className="relative z-10 flex h-full flex-col justify-center px-4 lg:px-5 py-8">
@@ -32,7 +32,7 @@ export function HeroBanner({ userName, activeCount = 0 }: HeroBannerProps) {
         <p className="max-w-[440px] text-[12.5px] leading-relaxed text-cream/40">
           Track everything you watch, play, and read in one place.
           {activeCount > 0 &&
-            ` Currently tracking ${activeCount} active title${activeCount !== 1 ? "s" : ""} across all mediums.`}
+            ` ${activeCount} title${activeCount !== 1 ? "s" : ""} waiting on your list.`}
         </p>
         <div className="mt-4 flex gap-[7px]">
           <Link

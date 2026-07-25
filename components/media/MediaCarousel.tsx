@@ -9,6 +9,8 @@ import type { LucideIcon } from "lucide-react";
 
 interface MediaCarouselProps {
   title: string;
+  /** Optional one-line explanation shown under the title (e.g. a rec reason) */
+  subtitle?: string;
   items: MediaItem[];
   onItemClick?: (item: MediaItem) => void;
   icon?: LucideIcon;
@@ -18,6 +20,7 @@ interface MediaCarouselProps {
 
 export function MediaCarousel({
   title,
+  subtitle,
   items,
   onItemClick,
   icon: IconComp,
@@ -87,6 +90,11 @@ export function MediaCarousel({
           </button>
         )}
       </div>
+      {subtitle && (
+        <p className="-mt-2 mb-2.5 pl-0.5 text-[11px] text-cream/25">
+          {subtitle}
+        </p>
+      )}
 
       {/* Carousel */}
       <div className="relative">
@@ -94,7 +102,7 @@ export function MediaCarousel({
         {canLeft && (
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-0 bottom-0 z-20 w-12 flex items-center justify-center bg-gradient-to-r from-[#0a0a0f] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            className="absolute left-0 top-0 bottom-0 z-20 w-12 flex items-center justify-center bg-gradient-to-r from-[#0c0c0e] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           >
             <ChevronLeft size={28} className="text-white/80" />
           </button>
@@ -104,7 +112,7 @@ export function MediaCarousel({
         {canRight && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-0 bottom-0 z-20 w-12 flex items-center justify-center bg-gradient-to-l from-[#0a0a0f] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            className="absolute right-0 top-0 bottom-0 z-20 w-12 flex items-center justify-center bg-gradient-to-l from-[#0c0c0e] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           >
             <ChevronRight size={28} className="text-white/80" />
           </button>

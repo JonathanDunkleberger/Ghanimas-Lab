@@ -33,7 +33,7 @@ export function ProgressUpdater({
       className="rounded-xl border border-white/[0.04] p-4"
       style={{
         background:
-          "linear-gradient(135deg, rgba(18,18,24,0.9), rgba(12,12,18,0.95))",
+          "linear-gradient(135deg, rgba(18,18,20,0.9), rgba(12,12,14,0.95))",
       }}
     >
       {/* Status selector */}
@@ -66,7 +66,7 @@ export function ProgressUpdater({
                       setShowStatusMenu(false);
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11.5px] font-medium transition-colors hover:bg-white/[0.03]"
-                    style={{ color: key === status ? val.color : "rgba(240,235,224,0.5)" }}
+                    style={{ color: key === status ? val.color : "rgba(240,238,234,0.5)" }}
                   >
                     {key === status && <Check size={11} />}
                     {val.label}
@@ -83,7 +83,7 @@ export function ProgressUpdater({
           style={{
             borderColor: isFavorite ? "rgba(197,194,188,0.3)" : "rgba(255,255,255,0.06)",
             background: isFavorite ? "rgba(197,194,188,0.08)" : "transparent",
-            color: isFavorite ? "#c5c2bc" : "rgba(240,235,224,0.3)",
+            color: isFavorite ? "#c5c2bc" : "rgba(240,238,234,0.3)",
           }}
           whileTap={{ scale: 0.9 }}
         >

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #0a0a0f, #14141c, #0e0e14)",
+          background: "linear-gradient(135deg, #0c0c0e, #18181b, #121214)",
           fontFamily: "sans-serif",
         }}
       >
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
               textTransform: "uppercase" as const,
             }}
           >
-            FEYRIS
+            {"GHANIMA'S LAB"}
           </div>
         </div>
 
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
             marginBottom: 8,
           }}
         >
-          Wrapped {period}
+          {`Wrapped ${period}`}
         </div>
 
         {/* Hours */}
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
         <div
           style={{
             fontSize: 18,
-            color: "#f0ebe0",
+            color: "#f0eeea",
             fontWeight: 300,
             marginBottom: 16,
           }}
@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
             <div style={{ fontSize: 28, fontWeight: 900, color: "#c5c2bc" }}>
               {titles}
             </div>
-            <div style={{ fontSize: 11, color: "rgba(240,235,224,0.35)" }}>
+            <div style={{ fontSize: 11, color: "rgba(240,238,234,0.35)" }}>
               titles
             </div>
           </div>
@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
           style={{
             fontSize: 22,
             fontWeight: 800,
-            color: "#f0ebe0",
+            color: "#f0eeea",
             marginBottom: 4,
           }}
         >
@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
             position: "absolute",
             bottom: 20,
             fontSize: 10,
-            color: "rgba(240,235,224,0.15)",
+            color: "rgba(240,238,234,0.15)",
             letterSpacing: 2,
           }}
         >

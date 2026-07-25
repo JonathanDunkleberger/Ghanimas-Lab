@@ -43,7 +43,7 @@ export default function SettingsPage() {
         className="max-w-[460px] rounded-xl border border-white/[0.025] p-[18px]"
         style={{
           background:
-            "linear-gradient(135deg, rgba(18,18,24,0.85), rgba(12,12,18,0.92))",
+            "linear-gradient(135deg, rgba(18,18,20,0.85), rgba(12,12,14,0.92))",
         }}
       >
         {SETTINGS_ITEMS.map((s, i) => {
@@ -90,7 +90,7 @@ export default function SettingsPage() {
                 disabled
                 className="group flex items-center gap-2.5 rounded-lg border border-white/[0.04] px-3.5 py-3 opacity-60 transition-all"
                 style={{
-                  background: "rgba(14,14,20,0.7)",
+                  background: "rgba(18,18,20,0.7)",
                 }}
               >
                 <div

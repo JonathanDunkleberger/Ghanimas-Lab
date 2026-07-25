@@ -67,7 +67,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-center gap-2.5 rounded-xl px-4 py-3 shadow-lg"
                 style={{
-                  background: "rgba(14,14,20,0.97)",
+                  background: "rgba(18,18,20,0.97)",
                   border: `1px solid ${color}20`,
                   backdropFilter: "blur(16px)",
                   minWidth: 260,
