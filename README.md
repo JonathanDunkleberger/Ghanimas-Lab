@@ -11,6 +11,8 @@
 </p>
 
 <p align="center">
+  <a href="https://ghanima.io">Live site</a>
+  ·
   <a href="#why">Why</a>
   ·
   <a href="#product-tour">Product tour</a>
@@ -292,5 +294,5 @@ MIT — see [`LICENSE`](LICENSE).
 ---
 
 <p align="center">
-  <sub>Jonathan Dunkleberger · Product case study</sub>
+  <sub>Jonathan Dunkleberger · Product case study · <a href="https://ghanima.io">ghanima.io</a></sub>
 </p>
