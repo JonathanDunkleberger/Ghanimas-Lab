@@ -11,13 +11,15 @@
 </p>
 
 <p align="center">
-  <a href="https://ghanimaslab.com">Live site</a>
-  ·
   <a href="#why">Why</a>
   ·
-  <a href="#product">Product</a>
+  <a href="#product-tour">Product tour</a>
   ·
   <a href="#architecture">Architecture</a>
+  ·
+  <a href="#how-the-stats-engine-works">Stats engine</a>
+  ·
+  <a href="#quick-start">Quick start</a>
   ·
   <a href="#roadmap">Roadmap</a>
 </p>
@@ -34,53 +36,72 @@
 
 ## Why
 
-Most people don’t consume media in one silo. You finish a film, start the novel it was based on, then drop into a related game — but the tools for tracking taste stay fragmented.
+Most people don't consume media in one silo. You finish a film, start the novel it was based on, then drop into a related game — but the tools for tracking taste stay fragmented: Letterboxd for films, MyAnimeList for anime, Goodreads for books, Steam for games.
 
-**Ghanima's Lab** is a product experiment in *cross-medium continuity*: one library, one search surface, one recommendation loop, and structured discussion around each title.
+**Ghanima's Lab** is a product experiment in *cross-medium continuity*: one library, one search surface, one recommendation loop, and structured discussion around each title. The thesis is simple — if the system understands your taste in one medium, it can lead you somewhere unexpected in another. Someone who loves *The Witcher 3* and *One Piece* might be one nudge away from picking up Seneca on audiobook.
 
-Built as an end-to-end web product — scoping a real problem, shipping discovery UX, identity, collections, and community threads.
+Built end-to-end as a solo project: scoping a real problem, shipping discovery UX, identity, collections, a local-first stats engine, and community threads.
 
 ---
 
-## Product
+## Product tour
 
-### Goals
+### Design goals
 
 | Goal | How it shows up |
 |------|-----------------|
-| Reduce context-switching across media apps | Single search + unified media model |
-| Make taste legible | Collection, ratings, Wrapped |
+| Reduce context-switching across media apps | Single search + one normalized media model |
+| Make taste legible | Collection, ratings, Wrapped, Analytics |
 | Recommend across mediums | For You scoring + diversity weighting |
-| Encourage thoughtful discourse | Rabbit Room nested threads (sign-in required) |
+| Depth per title, JustWatch-style | Runtime, binge time, time-to-beat, external scores, cast |
+| Zero-friction start | Everything works anonymously; sign-in only for discussion |
 
-### Surfaces
+### Home — unified discovery
 
-- **Home** — trending rails across film, TV, anime, games, and books  
-- **Collection** — favorites, watched / played / read, want-to lists  
-- **For You** — personalized recommendations from library signals  
-- **Wrapped** — year-in-review style snapshot  
-- **Rabbit Room** — per-title reviews & nested discussion  
-
-### Screenshots
+Trending rails across all five mediums, a live activity feed, and stats computed from your actual library (hours this week, current streak, average rating).
 
 <p align="center">
-  <img src="docs/screenshots/01-homepage.png" alt="Homepage with trending rails" width="100%" />
-  <br/><em>Homepage — unified discovery</em>
+  <img src="docs/screenshots/01-homepage.png" alt="Homepage with trending rails, activity feed, and live stats" width="100%" />
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/02-media-detail.png" alt="Media detail with Rabbit Room" width="100%" />
-  <br/><em>Media detail — actions and Rabbit Room</em>
-</p>
+### Media detail — depth per title
+
+Every title is enriched on open: episode counts and binge estimates for TV and anime, time-to-beat for games, read/listen time for books, external scores (IMDb, Rotten Tomatoes, Metacritic, MyAnimeList), cast and voice actors, and purchase/listen links.
 
 <p align="center">
-  <img src="docs/screenshots/04-for-you.png" alt="For You recommendations" width="100%" />
-  <br/><em>For You — taste-aware recommendations</em>
+  <img src="docs/screenshots/02-media-detail.png" alt="Media detail modal with scores, stats chips, and actions" width="100%" />
 </p>
 
+### Collection — your library
+
+Favorites, completed, and want-to lists with per-medium filters, plus a stats strip (estimated hours finished, top genre) derived from what you've tracked.
+
 <p align="center">
-  <img src="docs/screenshots/03-collection.png" alt="Collection page" width="100%" />
-  <br/><em>Collection — favorites, watched, watchlist</em>
+  <img src="docs/screenshots/03-collection.png" alt="Collection page with list tabs and stats strip" width="100%" />
+</p>
+
+### For You — taste-aware recommendations
+
+A scoring engine builds a taste profile from your library (genres, mediums, ratings) and ranks every candidate against it. Rails explain themselves: "Because you love Adventure" tells you which signal produced the row.
+
+<p align="center">
+  <img src="docs/screenshots/04-for-you.png" alt="For You page with personalized rails" width="100%" />
+</p>
+
+### Wrapped — your year (or month, or week) in review
+
+A Spotify-Wrapped-style story: total hours, top titles, genre breakdown, streaks, and a taste personality — all computed from the event history, shareable as an Open Graph card.
+
+<p align="center">
+  <img src="docs/screenshots/05-wrapped.png" alt="Wrapped slide showing total hours consumed" width="100%" />
+</p>
+
+### Analytics — the quantified library
+
+Hours by medium over time, library status, rating distribution, genre radar, and a daily activity heatmap. No demo numbers — every chart reads from the same event log.
+
+<p align="center">
+  <img src="docs/screenshots/06-analytics.png" alt="Analytics dashboard with charts computed from the library" width="100%" />
 </p>
 
 ---
@@ -91,10 +112,30 @@ Built as an end-to-end web product — scoping a real problem, shipping discover
   <img src="docs/feyris-architecture.svg" alt="System architecture" width="100%" />
 </p>
 
-**Experience** — Discover, collect, recommend, discuss.  
-**Application** — Next.js App Router (TypeScript), Zustand + React Query, Route Handlers, Clerk auth.  
-**Services** — TMDB, IGDB / Twitch, Google Books; optional OpenAI for seeding.  
-**Data** — Supabase Postgres (profiles, library, Rabbit Room); localStorage for lightweight client lists.
+**Experience** — Discover, collect, recommend, discuss.
+**Application** — Next.js App Router (TypeScript), Zustand + React Query, Route Handlers, Clerk auth.
+**Services** — TMDB, Jikan (MyAnimeList), IGDB/Twitch, Google Books, OMDb; optional OpenAI for playtime fallback.
+**Data** — Supabase Postgres (profiles, library, Rabbit Room); local-first client persistence for lists, ratings, and event history.
+
+### The unified media model
+
+Every adapter normalizes its source into one `MediaItem` shape — id, type, title, cover, genres, rating, runtime — so search, collection, recommendations, and stats never care where a title came from. Enrichment (cast, scores, links, time estimates) happens lazily in `/api/media/[slug]` when a detail panel opens, and responses are cached with Next.js revalidation.
+
+### How the stats engine works
+
+<p align="center">
+  <img src="docs/stats-pipeline.svg" alt="Local-first stats pipeline" width="100%" />
+</p>
+
+The interesting constraint: meaningful stats **without requiring an account**.
+
+1. **Actions become events.** Every favorite, completion, and rating appends `{ id, action, ts, value }` to an event log in localStorage (rating-slider noise is deduped, log capped at 2,000 entries).
+2. **Pure functions derive metrics.** `lib/library-stats.ts` turns the log into hours (per-medium time model shown above), streaks, top months, genre profiles, and a taste personality.
+3. **Three surfaces render them.** Wrapped, Analytics, and the Home dashboard all read from the same derivations — there is no second source of truth to drift.
+
+### How recommendations work
+
+`lib/recommendations/engine.ts` builds a taste profile (genre weights, medium affinity, rating-weighted signals) and scores every candidate item. Rails are then assembled with diversity weighting so one dominant genre doesn't flood the page, and each rail carries the reason it exists ("Because you love X"). A dedicated "From screen to page" rail deliberately routes screen-heavy taste toward books.
 
 ---
 
@@ -105,10 +146,11 @@ Built as an end-to-end web product — scoping a real problem, shipping discover
 | Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
 | UI | React 18, Tailwind CSS, Framer Motion |
+| Charts | Recharts |
 | Client state | Zustand, TanStack Query |
 | Auth | Clerk |
 | Database | Supabase (PostgreSQL) |
-| Media APIs | TMDB, IGDB / Twitch, Google Books |
+| Media APIs | TMDB, Jikan (MAL), IGDB/Twitch, Google Books, OMDb |
 | Hosting | Vercel |
 
 ---
@@ -118,13 +160,13 @@ Built as an end-to-end web product — scoping a real problem, shipping discover
 ### Prerequisites
 
 - Node.js 18+
-- API keys for TMDB, Twitch (IGDB), Google Books, Supabase, and Clerk
+- API keys for TMDB, Twitch (IGDB), Google Books, Supabase, and Clerk — all free tiers
 
 ### Setup
 
 ```bash
-git clone https://github.com/JonathanDunkleberger/Feyris.git
-cd Feyris
+git clone https://github.com/JonathanDunkleberger/Ghanimas-Lab.git
+cd Ghanimas-Lab
 npm install
 cp .env.local.example .env.local
 ```
@@ -140,6 +182,15 @@ Open [http://localhost:3000](http://localhost:3000).
 ### Rabbit Room schema
 
 Run [`supabase/rabbit_room_schema.sql`](supabase/rabbit_room_schema.sql) once in the Supabase SQL Editor to create `profiles`, `room_posts`, and `room_post_votes`.
+
+### Regenerating the docs screenshots
+
+The screenshots in this README are reproducible: `scripts/capture-screens.mjs` seeds a realistic library into localStorage, drives headless Chromium against the dev server, and rewrites `docs/screenshots/`.
+
+```bash
+npm run dev          # in one terminal
+node scripts/capture-screens.mjs   # in another
+```
 
 ---
 
@@ -171,16 +222,19 @@ Run [`supabase/rabbit_room_schema.sql`](supabase/rabbit_room_schema.sql) once in
 ## Repository layout
 
 ```
-Feyris/                   # repo name (legacy)
-├── app/                  # App Router + API routes
-├── components/           # UI
+Ghanimas-Lab/
+├── app/                  # App Router pages + API routes
+├── components/           # UI components
 ├── hooks/                # Data hooks
-├── lib/                  # Adapters, recommendations, Supabase
-├── stores/               # Zustand
+├── lib/                  # API adapters, stats engine, recommendations
+│   ├── api/              # TMDB, Jikan, IGDB, Google Books, OMDb, OpenAI
+│   ├── library-stats.ts  # Event log -> hours, streaks, genres, personality
+│   └── recommendations/  # Taste profile + scoring engine
+├── stores/               # Zustand (library, event history)
 ├── supabase/             # SQL schemas
-├── docs/                 # Architecture + screenshots
+├── docs/                 # Architecture diagrams + screenshots
 ├── public/               # Static assets
-└── scripts/              # Utilities
+└── scripts/              # Utilities, incl. screenshot capture
 ```
 
 ---
@@ -189,39 +243,45 @@ Feyris/                   # repo name (legacy)
 
 Shipped:
 
-- [x] Cross-source search and trending rails  
-- [x] Collection, ratings, For You, Wrapped  
-- [x] Clerk authentication  
-- [x] Rabbit Room (persisted nested discussion)  
-- [x] Silver visual system  
+- [x] Cross-source search and trending rails
+- [x] Collection, ratings, For You, Wrapped
+- [x] Local-first stats engine (event history → Wrapped / Analytics / Home)
+- [x] External scores: IMDb, Rotten Tomatoes, Metacritic, MyAnimeList
+- [x] Per-title depth: binge time, time-to-beat, read/listen estimates, cast
+- [x] Clerk authentication
+- [x] Rabbit Room (persisted nested discussion)
+- [x] Silver visual system
 
 Next:
 
-- [ ] Public profiles with post history  
-- [ ] Standalone Rabbit Room index  
-- [ ] Moderation / report flows  
-- [ ] Recommendation evaluation hooks  
-- [ ] Imports (Letterboxd / MAL / Goodreads)  
-- [ ] Accessibility & performance pass  
-- [ ] Custom domain aligned to product name  
+- [ ] Public profiles with post history
+- [ ] Standalone Rabbit Room index
+- [ ] Moderation / report flows
+- [ ] Recommendation evaluation hooks
+- [ ] Imports (Letterboxd / MAL / Goodreads)
+- [ ] Accessibility & performance pass
+- [ ] Custom domain aligned to product name
 
 ---
 
 ## Design principles
 
-1. **One composition for discovery** — Home should feel like a media universe, not a dashboard dump.  
-2. **Identity when it matters** — Browsing is open; discourse requires an account.  
-3. **Cross-medium first** — Recommendations should travel across formats.  
-4. **Quiet visual language** — Cool silver / pearl accents on charcoal; restraint over spectacle.
+1. **One composition for discovery** — Home should feel like a media universe, not a dashboard dump.
+2. **Identity when it matters** — Browsing is open; discourse requires an account.
+3. **Cross-medium first** — Recommendations should travel across formats, especially toward books.
+4. **Derived, never hardcoded** — If a number appears on screen, it's computed from real user data.
+5. **Quiet visual language** — Cool silver / pearl accents on charcoal; restraint over spectacle.
 
 ---
 
 ## Attribution
 
-- Film / TV / anime via [TMDB](https://www.themoviedb.org/) (not endorsed or certified by TMDB)  
-- Games via [IGDB](https://www.igdb.com/) / Twitch API  
-- Books via [Google Books](https://developers.google.com/books)  
-- Logos and trademarks belong to their respective owners  
+- Film / TV via [TMDB](https://www.themoviedb.org/) (not endorsed or certified by TMDB)
+- Anime via [Jikan](https://jikan.moe/) / [MyAnimeList](https://myanimelist.net/)
+- Games via [IGDB](https://www.igdb.com/) / Twitch API
+- Books via [Google Books](https://developers.google.com/books)
+- Ratings via [OMDb](https://www.omdbapi.com/)
+- Logos and trademarks belong to their respective owners
 
 ---
 
@@ -232,5 +292,5 @@ MIT — see [`LICENSE`](LICENSE).
 ---
 
 <p align="center">
-  <sub>Jonathan Dunkleberger · Product case study · <a href="https://ghanimaslab.com">ghanimaslab.com</a></sub>
+  <sub>Jonathan Dunkleberger · Product case study</sub>
 </p>

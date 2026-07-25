@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 460" role="img" aria-labelledby="title desc">
+  <title id="title">Local-first stats pipeline</title>
+  <desc id="desc">User actions become a timestamped event log, a stats engine derives metrics, and three surfaces render them.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#121214"/>
+      <stop offset="100%" stop-color="#0c0c0e"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a1d"/>
+      <stop offset="100%" stop-color="#151518"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#5e5c58"/>
+    </marker>
+  </defs>
+
+  <rect width="1100" height="460" fill="url(#bg)"/>
+
+  <text x="550" y="44" text-anchor="middle" fill="#f0eeea" font-family="Segoe UI, system-ui, sans-serif" font-size="20" font-weight="600" letter-spacing="3">LOCAL-FIRST STATS PIPELINE</text>
+  <text x="550" y="66" text-anchor="middle" fill="#8b8882" font-family="Segoe UI, system-ui, sans-serif" font-size="11">Every number on Wrapped, Analytics, and Home is derived &#8212; nothing is hardcoded</text>
+
+  <g font-family="Segoe UI, system-ui, sans-serif">
+    <rect x="40" y="120" width="225" height="200" rx="10" fill="url(#card)" stroke="#2e2e32"/>
+    <text x="56" y="150" fill="#8b8882" font-size="10" font-weight="700" letter-spacing="2">1 &#183; USER ACTIONS</text>
+    <text x="56" y="182" fill="#f0eeea" font-size="13">Favorite a title</text>
+    <text x="56" y="208" fill="#f0eeea" font-size="13">Mark watched / played / read</text>
+    <text x="56" y="234" fill="#f0eeea" font-size="13">Save for later</text>
+    <text x="56" y="260" fill="#f0eeea" font-size="13">Rate 1&#8211;10</text>
+    <text x="56" y="296" fill="#9a9791" font-size="11">Zustand store &#183; no sign-in needed</text>
+
+    <line x1="265" y1="220" x2="303" y2="220" stroke="#5e5c58" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+    <rect x="308" y="120" width="225" height="200" rx="10" fill="url(#card)" stroke="#2e2e32"/>
+    <text x="324" y="150" fill="#8b8882" font-size="10" font-weight="700" letter-spacing="2">2 &#183; EVENT LOG</text>
+    <text x="324" y="182" fill="#f0eeea" font-size="13">Append-only history</text>
+    <text x="324" y="208" fill="#f0eeea" font-size="13">{ id, action, ts, value }</text>
+    <text x="324" y="234" fill="#f0eeea" font-size="13">Deduped rating events</text>
+    <text x="324" y="260" fill="#f0eeea" font-size="13">Capped at 2,000 entries</text>
+    <text x="324" y="296" fill="#9a9791" font-size="11">localStorage &#183; survives reloads</text>
+
+    <line x1="533" y1="220" x2="571" y2="220" stroke="#5e5c58" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+    <rect x="576" y="120" width="225" height="200" rx="10" fill="url(#card)" stroke="#2e2e32"/>
+    <text x="592" y="150" fill="#8b8882" font-size="10" font-weight="700" letter-spacing="2">3 &#183; STATS ENGINE</text>
+    <text x="592" y="182" fill="#f0eeea" font-size="13">Hours model per medium</text>
+    <text x="592" y="208" fill="#f0eeea" font-size="13">Streaks &amp; top months</text>
+    <text x="592" y="234" fill="#f0eeea" font-size="13">Genre &amp; type breakdowns</text>
+    <text x="592" y="260" fill="#f0eeea" font-size="13">Taste personality</text>
+    <text x="592" y="296" fill="#9a9791" font-size="11">lib/library-stats.ts &#183; pure functions</text>
+
+    <line x1="801" y1="170" x2="839" y2="152" stroke="#5e5c58" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <line x1="801" y1="220" x2="839" y2="220" stroke="#5e5c58" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <line x1="801" y1="270" x2="839" y2="288" stroke="#5e5c58" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+    <rect x="844" y="120" width="216" height="56" rx="10" fill="url(#card)" stroke="#2e2e32"/>
+    <text x="860" y="144" fill="#f0eeea" font-size="13" font-weight="600">Wrapped</text>
+    <text x="860" y="162" fill="#9a9791" font-size="11">Year / month / week in review</text>
+
+    <rect x="844" y="192" width="216" height="56" rx="10" fill="url(#card)" stroke="#2e2e32"/>
+    <text x="860" y="216" fill="#f0eeea" font-size="13" font-weight="600">Analytics</text>
+    <text x="860" y="234" fill="#9a9791" font-size="11">Charts &#183; heatmap &#183; distributions</text>
+
+    <rect x="844" y="264" width="216" height="56" rx="10" fill="url(#card)" stroke="#2e2e32"/>
+    <text x="860" y="288" fill="#f0eeea" font-size="13" font-weight="600">Home &amp; For You</text>
+    <text x="860" y="306" fill="#9a9791" font-size="11">Activity feed &#183; taste profile</text>
+  </g>
+
+  <g font-family="Segoe UI, system-ui, sans-serif">
+    <rect x="40" y="356" width="1020" height="66" rx="10" fill="url(#card)" stroke="#2e2e32"/>
+    <text x="56" y="382" fill="#8b8882" font-size="10" font-weight="700" letter-spacing="2">HOURS MODEL</text>
+    <text x="56" y="406" fill="#9a9791" font-size="12">film &#8594; runtime &#183; TV / anime &#8594; episodes &#215; runtime &#183; game &#8594; time-to-beat (IGDB, GPT fallback) &#183; book &#8594; pages &#247; 40 read, pages &#247; 35 narrated</text>
+  </g>
+</svg>

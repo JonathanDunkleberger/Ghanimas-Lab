@@ -15,7 +15,10 @@ export async function searchTMDB(query: string) {
     tmdbUrl("/search/multi", { query, include_adult: "false" }),
     { next: { revalidate: 300 } }
   );
-  if (!res.ok) return [];
+  if (!res.ok) {
+    console.error(`TMDB search failed: ${res.status} ${res.statusText}`);
+    return [];
+  }
   const data = await res.json();
   return (data.results || []).filter(
     (r: any) => r.media_type === "movie" || r.media_type === "tv"
@@ -47,7 +50,10 @@ export async function getTMDBTrending(
     tmdbUrl(`/trending/${type}/${timeWindow}`),
     { next: { revalidate: 3600 } }
   );
-  if (!res.ok) return [];
+  if (!res.ok) {
+    console.error(`TMDB trending failed: ${res.status} ${res.statusText}`);
+    return [];
+  }
   const data = await res.json();
   return data.results || [];
 }
