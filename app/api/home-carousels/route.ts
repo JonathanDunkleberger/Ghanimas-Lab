@@ -3,16 +3,20 @@ import { NextResponse } from "next/server";
 import { getTMDBTrending, getTMDBTrendingPage, discoverTMDB, getTMDBOnAir } from "@/lib/api/tmdb";
 import { getTopAnime, getSeasonalAnime, getAnimeByGenre } from "@/lib/api/jikan";
 import { getPopularGames, getRecentGames, getTopRatedGames } from "@/lib/api/igdb";
-import { browseBooks } from "@/lib/api/books";
+import { fetchBooksBySubject } from "@/lib/api/openlibrary";
 import {
   normalizeTMDBMovie,
   normalizeTMDBTV,
   normalizeJikan,
   normalizeIGDB,
-  normalizeBook,
 } from "@/lib/api/normalize";
+import type { MediaItem } from "@/stores/app-store";
 
-export const revalidate = 3600; // Cache for 1 hour
+// Recompute on every request instead of caching the route output: each
+// upstream fetch has its own data-cache window, so this stays fast — but a
+// one-off upstream failure (rate limit, quota) no longer freezes a missing
+// carousel into the response for a full hour.
+export const dynamic = "force-dynamic";
 
 interface CarouselData {
   key: string;
@@ -30,8 +34,15 @@ export async function GET() {
     month <= 3 ? "winter" : month <= 6 ? "spring" : month <= 9 ? "summer" : "fall";
   const seasonLabel = season.charAt(0).toUpperCase() + season.slice(1);
 
-  // Fire all requests in parallel — each one is independent
-  // Fetch 40-50 items per carousel for rich scrolling
+  // Jikan hard rate-limits (~3 req/s), so its three calls run sequentially
+  // inside one task; everything else fans out in parallel.
+  const jikanTask = (async () => {
+    const seasonal = await getSeasonalAnime(year, season, 25);
+    const airing = await getTopAnime("airing", 25);
+    const action = await getAnimeByGenre(1, 25);
+    return { seasonal, airing, action };
+  })();
+
   const results = await Promise.allSettled([
     // 0: Trending Movies (TMDB) — fetch pages 1+2 = 40 results
     Promise.all([
@@ -43,18 +54,18 @@ export async function GET() {
       getTMDBTrending("tv", "week"),
       getTMDBTrendingPage("tv", "week", 2),
     ]).then(([a, b]) => [...a, ...b]),
-    // 2: Seasonal Anime (Jikan)
-    getSeasonalAnime(year, season, 25),
-    // 3: Top Airing Anime (Jikan)
-    getTopAnime("airing", 25),
-    // 4: Popular Games (IGDB)
+    // 2: All anime rows (Jikan, sequential)
+    jikanTask,
+    // 3: Popular Games (IGDB)
     getPopularGames(50),
-    // 5: Recently Released Games (IGDB)
+    // 4: Recently Released Games (IGDB)
     getRecentGames(50),
-    // 6: Best-Selling Books - Fiction
-    browseBooks("fiction", 40),
-    // 7: Sci-Fi & Fantasy Books
-    browseBooks("science fiction", 40),
+    // 5: Popular Fiction (Open Library → Google Books fallback)
+    fetchBooksBySubject("fiction", 40),
+    // 6: Sci-Fi & Fantasy Books
+    fetchBooksBySubject("science fiction", 40),
+    // 7: Fantasy Books
+    fetchBooksBySubject("fantasy", 40),
     // 8: Top Rated Films (TMDB discover: high vote, recent)
     discoverTMDB("movie", {
       sort_by: "vote_average.desc",
@@ -65,89 +76,134 @@ export async function GET() {
     getTMDBOnAir(),
     // 10: Top Rated Games (IGDB)
     getTopRatedGames(50),
-    // 11: Action Anime (Jikan - genre 1 = Action)
-    getAnimeByGenre(1, 25),
   ]);
 
-  function extract(index: number): any[] {
+  function extract<T = any[]>(index: number, fallback: T): T {
     const r = results[index];
-    return r.status === "fulfilled" ? (r.value || []) : [];
+    return r.status === "fulfilled" ? ((r.value as T) ?? fallback) : fallback;
   }
+
+  const anime = extract(2, { seasonal: [], airing: [], action: [] } as {
+    seasonal: any[];
+    airing: any[];
+    action: any[];
+  });
+
+  // Cards without artwork look broken — never ship them to the UI
+  const withCovers = (items: MediaItem[]) =>
+    items.filter((i) => i.cover_image_url);
 
   const carousels: CarouselData[] = [
     {
       key: "trending-movies",
       title: "Trending Movies",
       type: "film",
-      items: extract(0).slice(0, 40).map(normalizeTMDBMovie),
+      items: withCovers(extract(0, []).slice(0, 40).map(normalizeTMDBMovie)),
     },
     {
       key: "trending-tv",
       title: "Trending TV Shows",
       type: "tv",
-      items: extract(1).slice(0, 40).map(normalizeTMDBTV),
+      items: withCovers(extract(1, []).slice(0, 40).map(normalizeTMDBTV)),
     },
     {
       key: "seasonal-anime",
       title: `${seasonLabel} ${year} Anime`,
       type: "anime",
-      items: extract(2).slice(0, 25).map((r: any) => normalizeJikan(r)),
+      items: withCovers(anime.seasonal.slice(0, 25).map((r: any) => normalizeJikan(r))),
     },
     {
       key: "airing-anime",
       title: "Top Airing Anime",
       type: "anime",
-      items: extract(3).slice(0, 25).map((r: any) => normalizeJikan(r)),
+      items: withCovers(anime.airing.slice(0, 25).map((r: any) => normalizeJikan(r))),
     },
     {
       key: "popular-games",
       title: "Popular Games",
       type: "game",
-      items: extract(4).slice(0, 50).map(normalizeIGDB),
+      items: withCovers(extract(3, []).slice(0, 50).map(normalizeIGDB)),
     },
     {
       key: "new-games",
       title: "Recently Released Games",
       type: "game",
-      items: extract(5).slice(0, 50).map(normalizeIGDB),
+      items: withCovers(extract(4, []).slice(0, 50).map(normalizeIGDB)),
     },
     {
       key: "fiction-books",
       title: "Popular Fiction",
       type: "book",
-      items: extract(6).slice(0, 40).map(normalizeBook),
+      items: extract<MediaItem[]>(5, []).slice(0, 40),
     },
     {
       key: "scifi-books",
-      title: "Sci-Fi & Fantasy Books",
+      title: "Sci-Fi Books",
       type: "book",
-      items: extract(7).slice(0, 40).map(normalizeBook),
+      items: extract<MediaItem[]>(6, []).slice(0, 40),
+    },
+    {
+      key: "fantasy-books",
+      title: "Fantasy Books",
+      type: "book",
+      items: extract<MediaItem[]>(7, []).slice(0, 40),
     },
     {
       key: "top-rated-films",
       title: "Top Rated Films",
       type: "film",
-      items: extract(8).map(normalizeTMDBMovie),
+      items: withCovers(extract(8, []).map(normalizeTMDBMovie)),
     },
     {
       key: "on-air-tv",
       title: "Currently On Air",
       type: "tv",
-      items: extract(9).map(normalizeTMDBTV),
+      items: withCovers(extract(9, []).map(normalizeTMDBTV)),
     },
     {
       key: "top-rated-games",
       title: "Top Rated Games",
       type: "game",
-      items: extract(10).slice(0, 50).map(normalizeIGDB),
+      items: withCovers(extract(10, []).slice(0, 50).map(normalizeIGDB)),
     },
     {
       key: "action-anime",
       title: "Action Anime",
       type: "anime",
-      items: extract(11).slice(0, 25).map((r: any) => normalizeJikan(r)),
+      items: withCovers(anime.action.slice(0, 25).map((r: any) => normalizeJikan(r))),
     },
   ];
+
+  // The same blockbusters (Harry Potter…) top multiple Open Library subjects —
+  // keep each book only in the first row it appears in.
+  const seenBooks = new Set<string>();
+  for (const c of carousels) {
+    if (c.type !== "book") continue;
+    c.items = c.items.filter((i: MediaItem) => {
+      if (seenBooks.has(i.id)) return false;
+      seenBooks.add(i.id);
+      return true;
+    });
+  }
+
+  // Books deserve shelf space near the top, not the basement — interleave
+  // them after games instead of dumping every book row at the end.
+  const order = [
+    "trending-movies",
+    "trending-tv",
+    "seasonal-anime",
+    "airing-anime",
+    "popular-games",
+    "fiction-books",
+    "new-games",
+    "scifi-books",
+    "top-rated-films",
+    "on-air-tv",
+    "fantasy-books",
+    "top-rated-games",
+    "action-anime",
+  ];
+  carousels.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 
   // Filter out carousels with no items (API failed)
   const valid = carousels.filter((c) => c.items.length > 0);

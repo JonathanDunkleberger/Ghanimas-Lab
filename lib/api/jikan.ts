@@ -49,17 +49,29 @@ async function jikanJSON(url: string, revalidate: number) {
   return null;
 }
 
+export async function getMangaDetails(malId: number) {
+  const data = await jikanJSON(`${JIKAN_BASE}/manga/${malId}/full`, 86400);
+  return data?.data || null;
+}
+
 export async function getAnimeDetails(malId: number) {
+  // Jikan allows ~3 req/s — keep each parallel batch at 3 or fewer
   const [anime, chars, videos] = await Promise.all([
     jikanJSON(`${JIKAN_BASE}/anime/${malId}/full`, 86400),
     jikanJSON(`${JIKAN_BASE}/anime/${malId}/characters`, 86400),
     jikanJSON(`${JIKAN_BASE}/anime/${malId}/videos`, 604800),
+  ]);
+  const [streaming, recommendations] = await Promise.all([
+    jikanJSON(`${JIKAN_BASE}/anime/${malId}/streaming`, 86400),
+    jikanJSON(`${JIKAN_BASE}/anime/${malId}/recommendations`, 86400),
   ]);
 
   return {
     ...(anime?.data || {}),
     characters: chars?.data || [],
     videos: videos?.data || {},
+    streaming: streaming?.data || [],
+    recommendations: recommendations?.data || [],
   };
 }
 
@@ -109,17 +121,35 @@ export async function getAnimeEpisodeCount(
   return (lastPage - 1) * pageSize + (last.data || []).length;
 }
 
+/**
+ * Jikan rate-limits hard (~3 req/s) and 429s/504s under parallel load. List
+ * endpoints retry with backoff, bypassing the data cache on retries so a
+ * poisoned (rate-limited) cached body can't stick around.
+ */
+async function jikanList(url: string, revalidate: number = 3600): Promise<any[]> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(
+        url,
+        attempt === 0 ? { next: { revalidate } } : { cache: "no-store" }
+      );
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.data)) return json.data;
+      }
+    } catch {
+      // retry below
+    }
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
+  }
+  return [];
+}
+
 export async function getTopAnime(
   filter: "airing" | "upcoming" | "bypopularity" | "favorite" = "bypopularity",
   limit: number = 20
 ) {
-  const res = await fetch(
-    `${JIKAN_BASE}/top/anime?filter=${filter}&limit=${limit}`,
-    { next: { revalidate: 3600 } }
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data || [];
+  return jikanList(`${JIKAN_BASE}/top/anime?filter=${filter}&limit=${limit}`);
 }
 
 export async function getSeasonalAnime(
@@ -127,21 +157,13 @@ export async function getSeasonalAnime(
   season: "winter" | "spring" | "summer" | "fall" = "winter",
   limit: number = 20
 ) {
-  const res = await fetch(
-    `${JIKAN_BASE}/seasons/${year}/${season}?order_by=score&sort=desc&limit=${limit}`,
-    { next: { revalidate: 3600 } }
+  return jikanList(
+    `${JIKAN_BASE}/seasons/${year}/${season}?order_by=score&sort=desc&limit=${limit}`
   );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data || [];
 }
 
 export async function getAnimeByGenre(genreId: number, limit: number = 10) {
-  const res = await fetch(
-    `${JIKAN_BASE}/anime?genres=${genreId}&order_by=score&sort=desc&limit=${limit}`,
-    { next: { revalidate: 3600 } }
+  return jikanList(
+    `${JIKAN_BASE}/anime?genres=${genreId}&order_by=score&sort=desc&limit=${limit}`
   );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data || [];
 }

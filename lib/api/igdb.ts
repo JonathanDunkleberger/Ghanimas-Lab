@@ -50,7 +50,8 @@ export async function searchGames(query: string) {
     "/games",
     `search "${query}";
      fields name,cover.url,first_release_date,genres.name,
-            platforms.name,rating,total_rating,summary,videos.*,screenshots.url,
+            platforms.name,rating,total_rating,total_rating_count,rating_count,
+            summary,videos.*,screenshots.url,
             involved_companies.company.name,involved_companies.developer;
      limit 20;`
   );
@@ -67,6 +68,11 @@ export async function getGameDetails(igdbId: number) {
             involved_companies.company.name,involved_companies.developer,
             involved_companies.publisher,
             game_modes.name,themes.name,
+            franchises.name,game_engines.name,player_perspectives.name,
+            collection.games.id,collection.games.name,collection.games.cover.url,
+            dlcs.id,dlcs.name,dlcs.cover.url,
+            expansions.id,expansions.name,expansions.cover.url,
+            remakes.id,remakes.name,remakes.cover.url,
             similar_games.name,similar_games.cover.url,similar_games.id,
             game_time_to_beats.hastily,game_time_to_beats.normally,game_time_to_beats.completely,
             websites.url,websites.category;

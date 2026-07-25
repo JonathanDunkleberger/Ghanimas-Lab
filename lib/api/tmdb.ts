@@ -30,8 +30,8 @@ export async function getTMDBDetails(
   type: "movie" | "tv"
 ) {
   const appendFields = type === "movie"
-    ? "videos,credits,similar,watch/providers,keywords,release_dates,external_ids"
-    : "videos,credits,aggregate_credits,similar,watch/providers,keywords,content_ratings,external_ids";
+    ? "videos,credits,similar,recommendations,watch/providers,keywords,release_dates,external_ids"
+    : "videos,credits,aggregate_credits,similar,recommendations,watch/providers,keywords,content_ratings,external_ids";
   const res = await fetch(
     tmdbUrl(`/${type}/${id}`, {
       append_to_response: appendFields,

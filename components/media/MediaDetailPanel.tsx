@@ -74,6 +74,13 @@ function formatHours(totalMinutes: number): string {
   return `~${rounded}h`;
 }
 
+/** 2 340 000 → "2.3M"; 45 200 → "45K" */
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
+  return String(n);
+}
+
 /** Brand accents for outbound link pills */
 const LINK_BRAND_COLORS: Record<string, string> = {
   IMDb: "#F5C518",
@@ -144,7 +151,10 @@ export function MediaDetailPanel() {
     },
     enabled: !!selectedItem?.slug,
     staleTime: 24 * 60 * 60 * 1000,
-    initialData: selectedItem ?? undefined,
+    // placeholderData (NOT initialData): initialData is written to the cache
+    // and treated as fresh for the full staleTime, which silently prevented
+    // the enrichment fetch from ever firing — no cast, links, or playtimes.
+    placeholderData: selectedItem ?? undefined,
   });
 
   if (!selectedItem) return null;
@@ -247,6 +257,16 @@ export function MediaDetailPanel() {
           chips.push(`~${listenH}h audiobook`);
         }
         break;
+      case "manga": {
+        if (display.runtime) {
+          chips.push(`${display.runtime} chapters`);
+          // ~8 min per chapter
+          chips.push(`${formatHours(display.runtime * 8)} to read`);
+        }
+        const volumes = meta.volumes;
+        if (typeof volumes === "number") chips.push(`${volumes} volumes`);
+        break;
+      }
       case "game": {
         const est = playtime?.estimated ? " (AI est.)" : "";
         if (playtime?.normally != null)
@@ -267,13 +287,42 @@ export function MediaDetailPanel() {
     []
   ).filter((l) => l?.url && l?.label);
 
+  // Same-type related titles (franchise, author, fan recs) — own strip
+  const relatedItems = (() => {
+    const seen = new Set<string>([display.id]);
+    return (display.related || [])
+      .filter((r) => {
+        if (!r.cover_image_url || !r.id || seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      })
+      .slice(0, 12);
+  })();
+
+  const relatedHeading = (() => {
+    switch (display.media_type) {
+      case "book": {
+        const first = display.author?.split(",")[0]?.trim();
+        return first ? `More by ${first}` : "Related books";
+      }
+      case "game":
+        return "Same universe & similar games";
+      case "anime":
+        return "Fans also watched";
+      case "manga":
+        return "Related manga";
+      default:
+        return "More like this";
+    }
+  })();
+
+  // Cross-media discovery strip — never repeats the related strip
   const exploreItems = (() => {
     const consumedSet = new Set([...favorites, ...watched, ...watchlist]);
-    const pool =
-      display.explore_more && display.explore_more.length > 0
-        ? display.explore_more
-        : display.related || [];
-    return pool.filter((rel) => !consumedSet.has(rel.id)).slice(0, 5);
+    const shownSet = new Set(relatedItems.map((r) => r.id));
+    return (display.explore_more || [])
+      .filter((rel) => !consumedSet.has(rel.id) && !shownSet.has(rel.id))
+      .slice(0, 6);
   })();
 
   // ── Action handlers with cross-list logic ──
@@ -675,6 +724,8 @@ export function MediaDetailPanel() {
               details.push({ label: "MAL Rank", value: `#${meta.mal_rank}` });
             if (meta.mal_popularity && typeof meta.mal_popularity === "number")
               details.push({ label: "MAL Popularity", value: `#${meta.mal_popularity}` });
+            if (meta.mal_members && typeof meta.mal_members === "number")
+              details.push({ label: "MAL Members", value: formatCount(meta.mal_members) });
 
             // Game-specific
             if (meta.developer && typeof meta.developer === "string" && meta.developer)
@@ -685,6 +736,12 @@ export function MediaDetailPanel() {
               details.push({ label: "Game Modes", value: (meta.game_modes as string[]).join(", ") });
             if (meta.aggregated_rating && typeof meta.aggregated_rating === "number")
               details.push({ label: "Critic Score", value: `${meta.aggregated_rating}/100` });
+            if (meta.franchises && (meta.franchises as string[]).length > 0)
+              details.push({ label: "Franchise", value: (meta.franchises as string[]).slice(0, 2).join(", ") });
+            if (meta.game_engines && (meta.game_engines as string[]).length > 0)
+              details.push({ label: "Engine", value: (meta.game_engines as string[]).slice(0, 2).join(", ") });
+            if (meta.player_perspectives && (meta.player_perspectives as string[]).length > 0)
+              details.push({ label: "Perspective", value: (meta.player_perspectives as string[]).join(", ") });
 
             // Book-specific
             if (display.media_type === "book" && meta.publisher && typeof meta.publisher === "string")
@@ -693,6 +750,12 @@ export function MediaDetailPanel() {
               details.push({ label: "Published", value: meta.publishedDate });
             if (display.isbn)
               details.push({ label: "ISBN", value: display.isbn });
+            if (
+              display.media_type === "book" &&
+              typeof meta.ratingsCount === "number" &&
+              meta.ratingsCount > 0
+            )
+              details.push({ label: "Ratings", value: formatCount(meta.ratingsCount) });
 
             // TV-specific
             if (meta.episode_runtime && typeof meta.episode_runtime === "number")
@@ -886,93 +949,124 @@ export function MediaDetailPanel() {
             </div>
           )}
 
-          {/* 11. EXPLORE MORE — cross-media click-around */}
+          {/* 11. RELATED TITLES — same medium: franchise, author, fan recs */}
+          {relatedItems.length > 0 && (
+            <PosterStrip
+              title={relatedHeading}
+              items={relatedItems}
+              onSelect={setSelectedItem}
+            />
+          )}
+
+          {/* 12. EXPLORE MORE — cross-media click-around */}
           {exploreItems.length > 0 && (
-            <div className="mb-5">
-              <h3 className="mb-1 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
-                Explore more
-              </h3>
-              <p className="mb-2.5 text-[11px] text-cream/25">
-                Across films, TV, anime, games, and books
-              </p>
-              <div
-                className="scrollbar-hide"
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  overflowX: "auto",
-                  overflowY: "visible",
-                  scrollSnapType: "x mandatory",
-                  scrollBehavior: "smooth",
-                  paddingTop: "4px",
-                  paddingBottom: "12px",
-                  paddingLeft: "2px",
-                  paddingRight: "2px",
-                  scrollbarWidth: "none",
-                  msOverflowStyle: "none",
-                  WebkitOverflowScrolling: "touch",
-                } as React.CSSProperties}
-              >
-                {exploreItems.map((rel) => {
-                  const relCfg =
-                    MEDIA_TYPES[rel.media_type as keyof typeof MEDIA_TYPES];
-                  const relColor = relCfg?.color || "#c5c2bc";
-                  return (
-                    <div
-                      key={rel.id}
-                      style={{
-                        flexShrink: 0,
-                        scrollSnapAlign: "start",
-                        width: "120px",
-                        overflow: "visible",
-                      }}
-                    >
-                      <button
-                        onClick={() => setSelectedItem(rel)}
-                        className="group/rel relative w-full cursor-pointer text-left"
-                        style={{ overflow: "visible" }}
-                      >
-                        <div className="relative aspect-[2/3] rounded-lg overflow-hidden transition-all duration-300 ease-out group-hover/rel:scale-105 group-hover/rel:-translate-y-1 group-hover/rel:shadow-lg">
-                          {rel.cover_image_url ? (
-                            <Image
-                              src={rel.cover_image_url}
-                              alt={rel.title}
-                              fill
-                              className="object-cover"
-                              sizes="120px"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-fey-surface text-[10px] text-[#f0eeea]/20">
-                              {rel.title}
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
-                          <span
-                            className="absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
-                            style={{
-                              background: "rgba(12,12,14,0.75)",
-                              color: relColor,
-                              border: `1px solid ${relColor}44`,
-                            }}
-                          >
-                            {relCfg?.label || rel.media_type}
-                          </span>
-                          <div className="absolute bottom-0 left-0 right-0 p-2">
-                            <span className="line-clamp-2 text-[10px] font-semibold leading-tight text-white">
-                              {rel.title}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <PosterStrip
+              title="Explore more"
+              subtitle="Across films, TV, anime, games, and books"
+              items={exploreItems}
+              onSelect={setSelectedItem}
+            />
           )}
           <RabbitRoom media={display} />
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+// ─── Poster strip (Related titles / Explore more) ───────────────────────────
+function PosterStrip({
+  title,
+  subtitle,
+  items,
+  onSelect,
+}: {
+  title: string;
+  subtitle?: string;
+  items: MediaItem[];
+  onSelect: (item: MediaItem) => void;
+}) {
+  return (
+    <div className="mb-5">
+      <h3 className="mb-1 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
+        {title}
+      </h3>
+      {subtitle && (
+        <p className="mb-2.5 text-[11px] text-cream/25">{subtitle}</p>
+      )}
+      <div
+        className="scrollbar-hide"
+        style={{
+          display: "flex",
+          gap: "12px",
+          overflowX: "auto",
+          overflowY: "visible",
+          scrollSnapType: "x mandatory",
+          scrollBehavior: "smooth",
+          paddingTop: "4px",
+          paddingBottom: "12px",
+          paddingLeft: "2px",
+          paddingRight: "2px",
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+          WebkitOverflowScrolling: "touch",
+        } as React.CSSProperties}
+      >
+        {items.map((rel) => {
+          const relCfg =
+            MEDIA_TYPES[rel.media_type as keyof typeof MEDIA_TYPES];
+          const relColor = relCfg?.color || "#c5c2bc";
+          return (
+            <div
+              key={rel.id}
+              style={{
+                flexShrink: 0,
+                scrollSnapAlign: "start",
+                width: "120px",
+                overflow: "visible",
+              }}
+            >
+              <button
+                onClick={() => onSelect(rel)}
+                className="group/rel relative w-full cursor-pointer text-left"
+                style={{ overflow: "visible" }}
+              >
+                <div className="relative aspect-[2/3] rounded-lg overflow-hidden transition-all duration-300 ease-out group-hover/rel:scale-105 group-hover/rel:-translate-y-1 group-hover/rel:shadow-lg">
+                  {rel.cover_image_url ? (
+                    <Image
+                      src={rel.cover_image_url}
+                      alt={rel.title}
+                      fill
+                      className="object-cover"
+                      sizes="120px"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-fey-surface text-[10px] text-[#f0eeea]/20">
+                      {rel.title}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
+                  <span
+                    className="absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide"
+                    style={{
+                      background: "rgba(12,12,14,0.75)",
+                      color: relColor,
+                      border: `1px solid ${relColor}44`,
+                    }}
+                  >
+                    {relCfg?.label || rel.media_type}
+                  </span>
+                  <div className="absolute bottom-0 left-0 right-0 p-2">
+                    <span className="line-clamp-2 text-[10px] font-semibold leading-tight text-white">
+                      {rel.title}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

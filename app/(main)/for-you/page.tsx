@@ -136,21 +136,24 @@ export default function ForYouPage() {
       .sort((a, b) => b.score - a.score);
   }, [carousels, consumedSet, tasteProfile]);
 
-  // Top picks across every medium
-  const topPicks = useMemo(
-    () => scoredPool.slice(0, 20).map((s) => s.item),
-    [scoredPool]
-  );
+  // Top picks + per-type rails, deduped: an item shown in "Picked for you"
+  // never repeats in a genre rail below it.
+  const { topPicks, railsByType } = useMemo(() => {
+    const used = new Set<string>();
+    const picks = scoredPool.slice(0, 20).map((s) => s.item);
+    for (const p of picks) used.add(p.id);
 
-  // Per-type rails
-  const railsByType = useMemo(() => {
     const byType: Record<string, MediaItem[]> = {};
     for (const s of scoredPool) {
+      if (used.has(s.item.id)) continue;
       const t = s.item.media_type;
       if (!byType[t]) byType[t] = [];
-      if (byType[t].length < 15) byType[t].push(s.item);
+      if (byType[t].length < 15) {
+        byType[t].push(s.item);
+        used.add(s.item.id);
+      }
     }
-    return byType;
+    return { topPicks: picks, railsByType: byType };
   }, [scoredPool]);
 
   // The user's strongest genres (for rail titles)
@@ -170,38 +173,79 @@ export default function ForYouPage() {
     return null;
   }, [favorites, cachedItems]);
 
-  const railTitle = useCallback(
-    (type: string) => {
-      const genreForType = topGenres.find((g) =>
-        (railsByType[type] || []).some((i) => i.genres?.includes(g))
-      );
-      if (genreForType) return `Because you love ${genreForType}`;
-      const fallbacks: Record<string, string> = {
-        film: "Films worth your evening",
-        tv: "Series to sink into",
-        anime: "Anime picked for you",
-        game: "Games for your backlog",
-      };
-      return fallbacks[type] || `Recommended ${type}`;
-    },
-    [topGenres, railsByType]
-  );
+  // Most recent favorite *of each type* — lets rails say "Because you played
+  // The Witcher 3" instead of a generic genre line on every row.
+  const anchorByType = useMemo(() => {
+    const map: Record<string, MediaItem> = {};
+    for (const id of [...favorites].reverse()) {
+      const it = cachedItems[id];
+      if (it?.title && !map[it.media_type]) map[it.media_type] = it;
+    }
+    return map;
+  }, [favorites, cachedItems]);
 
-  const railSubtitle = useCallback(
-    (type: string) => {
-      if (!anchorFavorite) return undefined;
+  // One title + subtitle per rail, computed together so no two rails repeat
+  // the same "Because you love X" genre.
+  const railMeta = useMemo(() => {
+    const verbs: Record<string, string> = {
+      game: "played",
+      book: "read",
+      manga: "read",
+      film: "watched",
+      tv: "watched",
+      anime: "watched",
+    };
+    const typeNouns: Record<string, string> = {
+      game: "games",
+      film: "films",
+      tv: "series",
+      anime: "anime",
+      book: "books",
+      manga: "manga",
+    };
+    const fallbacks: Record<string, string> = {
+      film: "Films worth your evening",
+      tv: "Series to sink into",
+      anime: "Anime picked for you",
+      game: "Games for your backlog",
+    };
+
+    const usedGenres = new Set<string>();
+    const meta: Record<string, { title: string; subtitle?: string }> = {};
+
+    for (const type of ["anime", "game", "film", "tv"]) {
       const rail = railsByType[type] || [];
-      const shared = topGenres.find(
+      if (rail.length === 0) continue;
+
+      const anchor = anchorByType[type];
+      // A genre that actually characterizes this rail, not yet used by another
+      const genreForType = topGenres.find(
         (g) =>
-          anchorFavorite.genres?.includes(g) &&
-          rail.some((i) => i.genres?.includes(g))
+          !usedGenres.has(g) &&
+          rail.filter((i) => i.genres?.includes(g)).length >= 3
       );
-      if (shared)
-        return `You favorited ${anchorFavorite.title} — these share its ${shared} DNA.`;
-      return undefined;
-    },
-    [anchorFavorite, railsByType, topGenres]
-  );
+
+      if (anchor) {
+        meta[type] = {
+          title: `Because you ${verbs[type]} ${anchor.title}`,
+          subtitle: genreForType
+            ? `${typeNouns[type].charAt(0).toUpperCase() + typeNouns[type].slice(1)} carrying the same ${genreForType} current.`
+            : `Scored against your taste profile.`,
+        };
+      } else if (genreForType) {
+        usedGenres.add(genreForType);
+        meta[type] = {
+          title: `Because you love ${genreForType}`,
+          subtitle: anchorFavorite
+            ? `You favorited ${anchorFavorite.title} — these ${typeNouns[type]} share its ${genreForType} DNA.`
+            : undefined,
+        };
+      } else {
+        meta[type] = { title: fallbacks[type] || `Recommended ${type}` };
+      }
+    }
+    return meta;
+  }, [railsByType, anchorByType, topGenres, anchorFavorite]);
 
   // ── Blended "Surprise Mix" ──
   const blendedMix = useMemo(() => {
@@ -382,11 +426,11 @@ export default function ForYouPage() {
 
         {/* Per-type rails */}
         {(["anime", "game", "film", "tv"] as const).map((t) =>
-          railsByType[t] && railsByType[t].length > 0 ? (
+          railsByType[t] && railsByType[t].length > 0 && railMeta[t] ? (
             <MediaCarousel
               key={t}
-              title={railTitle(t)}
-              subtitle={railSubtitle(t)}
+              title={railMeta[t].title}
+              subtitle={railMeta[t].subtitle}
               items={railsByType[t]}
               onItemClick={setSelectedItem}
               icon={RAIL_ICONS[t] || TrendingUp}

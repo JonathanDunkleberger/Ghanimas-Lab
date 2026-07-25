@@ -32,6 +32,7 @@ const CAROUSEL_ICON: Record<string, typeof Tv> = {
   "new-games": Rocket,
   "fiction-books": BookOpen,
   "scifi-books": Rocket,
+  "fantasy-books": Sparkles,
   "top-rated-films": Trophy,
   "on-air-tv": Monitor,
   "top-rated-games": Trophy,
