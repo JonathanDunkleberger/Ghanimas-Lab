@@ -114,6 +114,15 @@ export const NAV_ITEMS = [
   { id: "wrapped", label: "Wrapped", icon: BarChart3, href: "/wrapped" },
 ] as const;
 
+/** The per-medium library sections — dense browse grids with eras & genres */
+export const BROWSE_NAV_ITEMS = [
+  { id: "browse-book", label: "Books", icon: BookOpen, href: "/browse/book" },
+  { id: "browse-film", label: "Films", icon: Film, href: "/browse/film" },
+  { id: "browse-tv", label: "Television", icon: Monitor, href: "/browse/tv" },
+  { id: "browse-anime", label: "Anime", icon: Tv, href: "/browse/anime" },
+  { id: "browse-game", label: "Games", icon: Gamepad2, href: "/browse/game" },
+] as const;
+
 // ─── Sub-Rating Dimensions ──────────────────────────────────────────────────
 export interface SubRatingDimension {
   key: string;

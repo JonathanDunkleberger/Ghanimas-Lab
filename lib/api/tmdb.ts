@@ -105,6 +105,17 @@ export async function getTMDBNowPlaying(page: number = 1) {
   return data.results || [];
 }
 
+/** Keyword ids for a free-text theme ("time travel", "heist") → discover */
+export async function searchTMDBKeywords(query: string): Promise<number[]> {
+  const res = await fetch(
+    tmdbUrl("/search/keyword", { query }),
+    { next: { revalidate: 86400 } }
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.results || []).slice(0, 4).map((k: { id: number }) => k.id);
+}
+
 export function tmdbImageUrl(
   path: string | null | undefined,
   size: string = "w500"

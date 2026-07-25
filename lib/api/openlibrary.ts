@@ -37,6 +37,49 @@ export async function browseOpenLibrary(
   return data.docs || [];
 }
 
+/**
+ * Advanced browse for the Books library section: subject or free-text
+ * query, optional first-publish-year window (era timelines), and sort.
+ */
+export async function browseOpenLibraryAdvanced(opts: {
+  subject?: string;
+  q?: string;
+  yearFrom?: number;
+  yearTo?: number;
+  sort: "readinglog" | "rating" | "new" | "old";
+  page: number;
+  limit: number;
+}) {
+  const parts: string[] = [];
+  if (opts.subject) parts.push(`subject:"${opts.subject}"`);
+  if (opts.q) parts.push(opts.q);
+  if (opts.yearFrom || opts.yearTo) {
+    parts.push(
+      `first_publish_year:[${opts.yearFrom || 0} TO ${opts.yearTo || 3000}]`
+    );
+  }
+  if (parts.length === 0) parts.push("fiction");
+
+  const params = new URLSearchParams({
+    q: parts.join(" AND "),
+    sort: opts.sort,
+    limit: String(opts.limit),
+    page: String(opts.page),
+    fields: OL_FIELDS,
+    lang: "en",
+  });
+  const res = await fetch(`${OL_BASE}/search.json?${params}`, {
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) {
+    console.error(`Open Library advanced browse failed (${res.status})`);
+    return [];
+  }
+  const data = await res.json();
+  return data.docs || [];
+}
+
 /** Relevance search on Open Library — fallback when Google Books is down/over quota */
 export async function searchOpenLibrary(query: string, limit: number = 20) {
   const params = new URLSearchParams({

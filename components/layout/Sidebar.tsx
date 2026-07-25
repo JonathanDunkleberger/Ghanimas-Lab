@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { CatLogo } from "@/components/shared/CatLogo";
-import { NAV_ITEMS } from "@/lib/constants";
+import { NAV_ITEMS, BROWSE_NAV_ITEMS } from "@/lib/constants";
 import { useAppStore } from "@/stores/app-store";
 
 export function Sidebar() {
@@ -52,6 +52,44 @@ export function Sidebar() {
           const isActive =
             pathname === item.href ||
             (item.href !== "/" && pathname.startsWith(item.href));
+
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              className={`relative flex items-center gap-2.5 rounded-lg border-none transition-all duration-200 ${
+                sidebarOpen ? "justify-start px-3 py-2.5" : "justify-center py-2.5"
+              }`}
+              style={{
+                background: isActive
+                  ? "rgba(197,194,188,0.1)"
+                  : "transparent",
+                color: isActive ? "#f0eeea" : "rgba(240,238,234,0.35)",
+                fontSize: 12.5,
+                fontWeight: isActive ? 700 : 500,
+              }}
+            >
+              {isActive && (
+                <div className="absolute -left-2 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded bg-silver" />
+              )}
+              <Icon
+                size={17}
+                strokeWidth={isActive ? 2.2 : 1.5}
+              />
+              {sidebarOpen && item.label}
+            </Link>
+          );
+        })}
+
+        {sidebarOpen && (
+          <div className="px-2.5 pb-1.5 pt-4 text-[8.5px] font-bold uppercase tracking-[2px] text-cream/[0.17]">
+            Library
+          </div>
+        )}
+        {!sidebarOpen && <div className="my-2 h-px bg-white/[0.05]" />}
+        {BROWSE_NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
 
           return (
             <Link

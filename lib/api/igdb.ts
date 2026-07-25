@@ -167,6 +167,62 @@ export async function getGamesByGenre(
   );
 }
 
+/**
+ * Advanced browse for the Games library section: genre, free text,
+ * release window (era timelines), and sort. NOTE: IGDB rejects queries
+ * combining `search` with `sort`, so free-text results keep IGDB's own
+ * relevance order.
+ */
+export async function browseGames(opts: {
+  genre?: string;
+  q?: string;
+  yearFrom?: number;
+  yearTo?: number;
+  sort: "popular" | "top" | "new" | "old";
+  page: number;
+  limit: number;
+}) {
+  const where: string[] = ["cover != null"];
+  if (opts.genre) where.push(`genres = (${opts.genre})`);
+  if (opts.yearFrom)
+    where.push(
+      `first_release_date > ${Math.floor(Date.UTC(opts.yearFrom, 0, 1) / 1000)}`
+    );
+  if (opts.yearTo)
+    where.push(
+      `first_release_date < ${Math.floor(Date.UTC(opts.yearTo + 1, 0, 1) / 1000)}`
+    );
+
+  let sortClause = "";
+  switch (opts.sort) {
+    case "top":
+      where.push("rating_count > 40");
+      sortClause = "sort rating desc;";
+      break;
+    case "new":
+      where.push("rating_count > 3", "first_release_date != null");
+      sortClause = "sort first_release_date desc;";
+      break;
+    case "old":
+      where.push("rating_count > 10", "first_release_date != null");
+      sortClause = "sort first_release_date asc;";
+      break;
+    default:
+      where.push("rating_count > 10");
+      sortClause = "sort rating_count desc;";
+  }
+
+  return igdbFetch(
+    "/games",
+    `fields name,cover.url,first_release_date,genres.name,
+            rating,summary,involved_companies.company.name;
+     ${opts.q ? `search "${opts.q.replace(/"/g, "")}";` : sortClause}
+     where ${where.join(" & ")};
+     limit ${opts.limit};
+     offset ${(opts.page - 1) * opts.limit};`
+  );
+}
+
 export function igdbImageUrl(
   url: string | undefined,
   size: string = "cover_big"

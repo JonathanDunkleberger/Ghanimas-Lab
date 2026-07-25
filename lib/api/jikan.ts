@@ -170,6 +170,51 @@ export async function getSeasonalAnime(
   );
 }
 
+/**
+ * Advanced browse for the Anime library section: genre, free text,
+ * air-date window (era timelines), and sort.
+ */
+export async function browseAnime(opts: {
+  genre?: string;
+  q?: string;
+  yearFrom?: number;
+  yearTo?: number;
+  sort: "members" | "score" | "start_date_desc" | "start_date_asc";
+  page: number;
+  limit: number;
+}) {
+  const params = new URLSearchParams({
+    limit: String(Math.min(opts.limit, 25)),
+    page: String(opts.page),
+    sfw: "true",
+  });
+  if (opts.genre) params.set("genres", opts.genre);
+  if (opts.q) params.set("q", opts.q);
+  if (opts.yearFrom) params.set("start_date", `${opts.yearFrom}-01-01`);
+  if (opts.yearTo) params.set("end_date", `${opts.yearTo}-12-31`);
+
+  switch (opts.sort) {
+    case "score":
+      params.set("order_by", "score");
+      params.set("sort", "desc");
+      params.set("min_score", "5");
+      break;
+    case "start_date_desc":
+      params.set("order_by", "start_date");
+      params.set("sort", "desc");
+      break;
+    case "start_date_asc":
+      params.set("order_by", "start_date");
+      params.set("sort", "asc");
+      break;
+    default:
+      params.set("order_by", "members");
+      params.set("sort", "desc");
+  }
+
+  return jikanList(`${JIKAN_BASE}/anime?${params}`);
+}
+
 export async function getAnimeByGenre(
   genreId: number,
   limit: number = 10,
