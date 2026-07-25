@@ -42,6 +42,8 @@ Most people don't consume media in one silo. You finish a film, start the novel 
 
 **Ghanima's Lab** is a product experiment in *cross-medium continuity*: one library, one search surface, one recommendation loop, and structured discussion around each title. The thesis is simple — if the system understands your taste in one medium, it can lead you somewhere unexpected in another. Someone who loves *The Witcher 3* and *One Piece* might be one nudge away from picking up Seneca on audiobook.
 
+A second principle: **no dead ends**. Every detail card links onward — same-franchise titles, other books by the author, DLC and sequels, fan-recommended anime, and a cross-media "Explore more" strip — so the site behaves like a continuous loop of discovery rather than a lookup tool you bounce off of.
+
 Built end-to-end as a solo project: scoping a real problem, shipping discovery UX, identity, collections, a local-first stats engine, and community threads.
 
 ---
@@ -53,9 +55,11 @@ Built end-to-end as a solo project: scoping a real problem, shipping discovery U
 | Goal | How it shows up |
 |------|-----------------|
 | Reduce context-switching across media apps | Single search + one normalized media model |
+| Search that ranks like a human expects | Popularity-weighted relevance — "dune" surfaces the Villeneuve films and the Herbert novels before shovelware with the same name |
 | Make taste legible | Collection, ratings, Wrapped, Analytics |
-| Recommend across mediums | For You scoring + diversity weighting |
-| Depth per title, JustWatch-style | Runtime, binge time, time-to-beat, external scores, cast |
+| Recommend across mediums | For You scoring + diversity weighting + rails named after *your* favorites |
+| Depth per title, JustWatch-style | Runtime, binge time, time-to-beat, read/listen estimates, external scores, cast, franchises, streaming links |
+| No dead ends | Related-titles and Explore-more strips on every card keep the loop going |
 | Zero-friction start | Everything works anonymously; sign-in only for discussion |
 
 ### Home — unified discovery
@@ -68,7 +72,13 @@ Trending rails across all five mediums, a live activity feed, and stats computed
 
 ### Media detail — depth per title
 
-Every title is enriched on open: episode counts and binge estimates for TV and anime, time-to-beat for games, read/listen time for books, external scores (IMDb, Rotten Tomatoes, Metacritic, MyAnimeList), cast and voice actors, and purchase/listen links.
+Every title is enriched on open — and the enrichment is prefetched the moment you hover a card, so it feels instant:
+
+- **Time economics** — binge time for TV and anime (real episode counts), time-to-beat for games, read time and audiobook length for books.
+- **External scores** — IMDb, Rotten Tomatoes, Metacritic, MyAnimeList, Open Library ratings.
+- **People and production** — cast, voice actors, studios, networks, budget and box office, game engines and perspectives.
+- **Onward links** — streaming platforms for anime, Audible / Google Books for novels, official sites and stores for games.
+- **Two discovery strips** — *Related titles* (same medium: franchise entries, DLC, more by the author, fan recommendations) and *Explore more* (cross-media picks that match the title's vibe).
 
 <p align="center">
   <img src="docs/screenshots/02-media-detail.png" alt="Media detail modal with scores, stats chips, and actions" width="100%" />
@@ -84,7 +94,7 @@ Favorites, completed, and want-to lists with per-medium filters, plus a stats st
 
 ### For You — taste-aware recommendations
 
-A scoring engine builds a taste profile from your library (genres, mediums, ratings) and ranks every candidate against it. Rails explain themselves: "Because you love Adventure" tells you which signal produced the row.
+A scoring engine builds a taste profile from your library (genres, mediums, ratings) and ranks every candidate against it. Rails explain themselves — and they're personal: "Because you played The Witcher 3" or "From screen to page" instead of a generic genre label. Items are deduplicated across rails so the page reads like a magazine, not an echo.
 
 <p align="center">
   <img src="docs/screenshots/04-for-you.png" alt="For You page with personalized rails" width="100%" />
@@ -116,12 +126,16 @@ Hours by medium over time, library status, rating distribution, genre radar, and
 
 **Experience** — Discover, collect, recommend, discuss.
 **Application** — Next.js App Router (TypeScript), Zustand + React Query, Route Handlers, Clerk auth.
-**Services** — TMDB, Jikan (MyAnimeList), IGDB/Twitch, Google Books, OMDb; optional OpenAI for playtime fallback.
+**Services** — TMDB, Jikan (MyAnimeList), IGDB/Twitch, Open Library, Google Books, OMDb; optional OpenAI for playtime fallback.
 **Data** — Supabase Postgres (profiles, library, Rabbit Room); local-first client persistence for lists, ratings, and event history.
 
 ### The unified media model
 
-Every adapter normalizes its source into one `MediaItem` shape — id, type, title, cover, genres, rating, runtime — so search, collection, recommendations, and stats never care where a title came from. Enrichment (cast, scores, links, time estimates) happens lazily in `/api/media/[slug]` when a detail panel opens, and responses are cached with Next.js revalidation.
+Every adapter normalizes its source into one `MediaItem` shape — id, type, title, cover, genres, rating, runtime — so search, collection, recommendations, and stats never care where a title came from. Enrichment (cast, scores, links, time estimates) happens lazily in `/api/media/[slug]`, prefetched on card hover so opening a title feels instant; the cross-media Explore strip loads independently from `/api/explore-more` so it never blocks the details. Responses are cached with Next.js revalidation.
+
+### How search ranking works
+
+`/api/search-all` queries all five sources in parallel, then scores each hit by blending **title/author match** with **log-scaled popularity per source** (TMDB votes, MAL members, IGDB rating counts, book ratings). A popular title that also matches the query dominates — which is what puts *Dune (2021)*, *Dune: Part Two*, and the Herbert novels above obscure exact-name matches. Books fall back to Open Library when Google Books is over quota, and typo-tolerant matches are ranked down instead of dropped.
 
 ### How the stats engine works
 
@@ -152,7 +166,7 @@ The interesting constraint: meaningful stats **without requiring an account**.
 | Client state | Zustand, TanStack Query |
 | Auth | Clerk |
 | Database | Supabase (PostgreSQL) |
-| Media APIs | TMDB, Jikan (MAL), IGDB/Twitch, Google Books, OMDb |
+| Media APIs | TMDB, Jikan (MAL), IGDB/Twitch, Open Library, Google Books, OMDb |
 | Hosting | Vercel |
 
 ---
@@ -185,13 +199,17 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Run [`supabase/rabbit_room_schema.sql`](supabase/rabbit_room_schema.sql) once in the Supabase SQL Editor to create `profiles`, `room_posts`, and `room_post_votes`.
 
+> The name honors the Rabbit Room — the back room of the Eagle and Child pub in Oxford where Tolkien, C.S. Lewis, and the Inklings met to read their drafts aloud. Every title here gets its own room for the same reason.
+
 ### Regenerating the docs screenshots
 
-The screenshots in this README are reproducible: `scripts/capture-screens.mjs` seeds a realistic library into localStorage, drives headless Chromium against the dev server, and rewrites `docs/screenshots/`.
+The screenshots in this README are reproducible: `scripts/capture-screens.mjs` seeds a realistic library into localStorage, drives headless Chromium, and rewrites `docs/screenshots/`.
 
 ```bash
-npm run dev          # in one terminal
-node scripts/capture-screens.mjs   # in another
+npm run dev                                              # local target
+node scripts/capture-screens.mjs
+# — or shoot the live site —
+SHOT_BASE=https://ghanima.io node scripts/capture-screens.mjs
 ```
 
 ---
@@ -246,10 +264,15 @@ Ghanimas-Lab/
 Shipped:
 
 - [x] Cross-source search and trending rails
+- [x] Popularity-weighted search ranking (per-source log-scaled signals)
+- [x] Open Library integration — popular book rails + quota-proof fallback
 - [x] Collection, ratings, For You, Wrapped
+- [x] Personalized recommendation rails ("Because you played…", "From screen to page")
 - [x] Local-first stats engine (event history → Wrapped / Analytics / Home)
 - [x] External scores: IMDb, Rotten Tomatoes, Metacritic, MyAnimeList
-- [x] Per-title depth: binge time, time-to-beat, read/listen estimates, cast
+- [x] Per-title depth: binge time, time-to-beat, read/listen estimates, cast, franchises, DLC, streaming links
+- [x] Related-titles + cross-media Explore strips (no dead ends)
+- [x] Hover-prefetched detail panels with independent Explore loading
 - [x] Clerk authentication
 - [x] Rabbit Room (persisted nested discussion)
 - [x] Silver visual system
@@ -281,7 +304,7 @@ Next:
 - Film / TV via [TMDB](https://www.themoviedb.org/) (not endorsed or certified by TMDB)
 - Anime via [Jikan](https://jikan.moe/) / [MyAnimeList](https://myanimelist.net/)
 - Games via [IGDB](https://www.igdb.com/) / Twitch API
-- Books via [Google Books](https://developers.google.com/books)
+- Books via [Open Library](https://openlibrary.org/) and [Google Books](https://developers.google.com/books)
 - Ratings via [OMDb](https://www.omdbapi.com/)
 - Logos and trademarks belong to their respective owners
 

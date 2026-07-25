@@ -142,19 +142,40 @@ export function MediaDetailPanel() {
   }, [selectedItem?.id]);
 
   // Fetch enriched detail data — must be above the conditional return (Rules of Hooks)
-  const { data: enrichedItem } = useQuery<MediaItem>({
-    queryKey: ["media-detail", selectedItem?.slug],
+  const { data: enrichedItem, isPlaceholderData: detailLoading } =
+    useQuery<MediaItem>({
+      queryKey: ["media-detail", selectedItem?.slug],
+      queryFn: async () => {
+        const res = await fetch(`/api/media/${selectedItem!.slug}`);
+        if (!res.ok) return selectedItem!;
+        return res.json();
+      },
+      enabled: !!selectedItem?.slug,
+      staleTime: 24 * 60 * 60 * 1000,
+      // placeholderData (NOT initialData): initialData is written to the cache
+      // and treated as fresh for the full staleTime, which silently prevented
+      // the enrichment fetch from ever firing — no cast, links, or playtimes.
+      placeholderData: selectedItem ?? undefined,
+    });
+
+  // Cross-media strip loads independently — it fans out to four other APIs
+  // and shouldn't hold the main details hostage
+  const { data: exploreMore = [] } = useQuery<MediaItem[]>({
+    queryKey: ["explore-more", selectedItem?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/media/${selectedItem!.slug}`);
-      if (!res.ok) return selectedItem!;
+      const it = selectedItem!;
+      const params = new URLSearchParams({
+        id: it.id,
+        type: it.media_type,
+        title: it.title,
+        genre: it.genres?.[0] || "",
+      });
+      const res = await fetch(`/api/explore-more?${params}`);
+      if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!selectedItem?.slug,
+    enabled: !!selectedItem?.id,
     staleTime: 24 * 60 * 60 * 1000,
-    // placeholderData (NOT initialData): initialData is written to the cache
-    // and treated as fresh for the full staleTime, which silently prevented
-    // the enrichment fetch from ever firing — no cast, links, or playtimes.
-    placeholderData: selectedItem ?? undefined,
   });
 
   if (!selectedItem) return null;
@@ -320,7 +341,7 @@ export function MediaDetailPanel() {
   const exploreItems = (() => {
     const consumedSet = new Set([...favorites, ...watched, ...watchlist]);
     const shownSet = new Set(relatedItems.map((r) => r.id));
-    return (display.explore_more || [])
+    return exploreMore
       .filter((rel) => !consumedSet.has(rel.id) && !shownSet.has(rel.id))
       .slice(0, 6);
   })();
@@ -642,6 +663,28 @@ export function MediaDetailPanel() {
                 : getWatchlistLabel(item.media_type)}
             </button>
           </div>
+
+          {/* 5b. ENRICHMENT SHIMMER — cast/links/details are still on the way */}
+          {detailLoading && (
+            <div className="mb-5 animate-pulse space-y-2.5">
+              <div className="flex items-center gap-2">
+                <Loader2 size={12} className="animate-spin text-[#c5c2bc]/40" />
+                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#f0eeea]/25">
+                  Pulling full details
+                </span>
+              </div>
+              <div className="flex gap-1.5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-6 w-24 rounded-md bg-white/[0.04]" />
+                ))}
+              </div>
+              <div className="flex gap-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-16 w-16 rounded-full bg-white/[0.03]" />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 6. YOUR RATING */}
           <div className="mb-5">

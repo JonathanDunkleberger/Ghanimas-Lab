@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Check, Star, Film } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { MEDIA_TYPES } from "@/lib/constants";
 import type { MediaItem } from "@/stores/app-store";
 import { useMediaStore } from "@/stores/media-store";
@@ -16,6 +17,7 @@ interface MediaCardProps {
 export function MediaCard({ item, onClick }: MediaCardProps) {
   const [hovered, setHovered] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
+  const queryClient = useQueryClient();
   const favorites = useMediaStore((s) => s.favorites);
   const watched = useMediaStore((s) => s.watched);
   const toggleFavorite = useMediaStore((s) => s.toggleFavorite);
@@ -26,9 +28,26 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
   const favorited = favorites.includes(item.id);
   const isWatched = watched.includes(item.id);
 
+  // Warm the detail cache on hover so opening the card feels instant
+  const prefetchDetail = () => {
+    if (!item.slug) return;
+    queryClient.prefetchQuery({
+      queryKey: ["media-detail", item.slug],
+      queryFn: async () => {
+        const res = await fetch(`/api/media/${item.slug}`);
+        if (!res.ok) return item;
+        return res.json();
+      },
+      staleTime: 24 * 60 * 60 * 1000,
+    });
+  };
+
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => {
+        setHovered(true);
+        prefetchDetail();
+      }}
       onMouseLeave={() => setHovered(false)}
       onClick={onClick}
       className="group relative cursor-pointer"

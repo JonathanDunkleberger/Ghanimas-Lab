@@ -1,12 +1,15 @@
 /**
  * Regenerates the README screenshots in docs/screenshots/.
  *
- * Usage:  node scripts/capture-screens.mjs  (dev server must be running on :3100)
+ * Usage:
+ *   node scripts/capture-screens.mjs                          (dev server on :3100)
+ *   SHOT_BASE=https://ghanima.io node scripts/capture-screens.mjs   (production)
  *
  * Notes:
  * - Uses playwright-core with the locally cached Chromium.
- * - All page requests are fulfilled through Node's fetch because headless
- *   Chromium may be denied local-network access by macOS privacy controls.
+ * - Against localhost, page requests are fulfilled through Node's fetch
+ *   because headless Chromium may be denied local-network access by macOS
+ *   privacy controls. Remote targets are loaded directly.
  * - Seeds localStorage with a realistic library (favorites, watched,
  *   ratings, timestamped history) so Collection / For You / Wrapped /
  *   Analytics render with real data instead of empty states.
@@ -14,10 +17,11 @@
 import { chromium } from "playwright-core";
 import { mkdirSync, appendFileSync } from "node:fs";
 
-const BASE = "http://localhost:3100";
-// Chromium is denied local-network access by macOS, so pages are loaded from
-// a fictional host and every request is rewritten to BASE inside Node.
-const FAKE = "http://ghanimas-lab.internal";
+const BASE = process.env.SHOT_BASE || "http://localhost:3100";
+const IS_LOCAL = BASE.includes("localhost");
+// Chromium is denied local-network access by macOS, so local pages are loaded
+// from a fictional host and every request is rewritten to BASE inside Node.
+const FAKE = IS_LOCAL ? "http://ghanimas-lab.internal" : BASE;
 const OUT = "docs/screenshots";
 const EXE =
   process.env.HOME +
@@ -134,7 +138,7 @@ const FORBIDDEN_REQ = new Set([
   "host", "connection", "content-length", "accept-encoding", "upgrade",
   "keep-alive", "transfer-encoding", "te", "trailer", "proxy-connection",
 ]);
-await context.route("**/*", async (route) => {
+if (IS_LOCAL) await context.route("**/*", async (route) => {
   routeHits++;
   const req = route.request();
   try {
