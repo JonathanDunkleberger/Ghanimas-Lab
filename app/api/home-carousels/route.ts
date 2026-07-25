@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { buildRails, type RailDef } from "@/lib/api/rails";
 import type { MediaItem } from "@/stores/app-store";
 
-// Recompute on every request instead of caching the route output: each
-// upstream fetch has its own data-cache window, so this stays fast — but a
-// one-off upstream failure (rate limit, quota) no longer freezes a missing
-// carousel into the response for a full hour.
+// Recompute per request (with an in-memory SWR layer below) instead of
+// caching the route output: a one-off upstream failure must never freeze
+// a missing carousel into the response for a full hour.
 export const dynamic = "force-dynamic";
 
 interface CarouselData {
@@ -15,88 +14,95 @@ interface CarouselData {
   items: MediaItem[];
 }
 
+type Group = "tmdb" | "igdb" | "jikan" | "openlibrary";
+const GROUPS: Group[] = ["tmdb", "igdb", "jikan", "openlibrary"];
+
 /**
- * Page 1 of every rail in the registry. Jikan rails run sequentially
- * (hard ~3 req/s rate limit); everything else fans out in parallel.
- * Deeper pages stream through /api/rail/[key] as the user scrolls.
+ * Home rails, grouped by provider so the client can render progressively:
+ * `?group=tmdb` returns just the film/TV rails in ~300ms while anime
+ * (Jikan) resolves — or fails — on its own request. No group = everything,
+ * interleaved (kept for the For You pool and tooling).
+ *
+ * A module-level stale-while-revalidate cache makes repeat loads instant:
+ * fresh entries are served as-is; stale entries recompute, but a rail that
+ * comes back empty (provider outage) never overwrites a cached good one.
  */
-export async function GET() {
-  const rails = buildRails();
-  const jikanRails = rails.filter((r) => r.source === "jikan");
-  const igdbRails = rails.filter((r) => r.source === "igdb");
-  const parallelRails = rails.filter(
-    (r) => r.source !== "jikan" && r.source !== "igdb"
+const FRESH_MS = 5 * 60 * 1000;
+
+type CacheEntry = { rails: CarouselData[]; ts: number };
+const railCache: Map<string, CacheEntry> =
+  ((globalThis as Record<string, unknown>).__railCache as Map<
+    string,
+    CacheEntry
+  >) || new Map();
+(globalThis as Record<string, unknown>).__railCache = railCache;
+
+async function fetchRail(rail: RailDef): Promise<CarouselData> {
+  try {
+    const items = (await rail.fetchPage(1)).filter((i) => i.cover_image_url);
+    return { key: rail.key, title: rail.title, type: rail.type, items };
+  } catch {
+    return { key: rail.key, title: rail.title, type: rail.type, items: [] };
+  }
+}
+
+async function computeGroup(group: Group): Promise<CarouselData[]> {
+  const rails = buildRails().filter((r) => r.source === group);
+  let results: CarouselData[] = [];
+
+  if (group === "jikan") {
+    // ~3 req/s limit — sequential with a politeness gap and a time budget
+    const deadline = Date.now() + 6000;
+    for (const rail of rails) {
+      results.push(await fetchRail(rail));
+      if (Date.now() > deadline) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  } else if (group === "igdb") {
+    // 4 req/s limit — waves of 3
+    for (let i = 0; i < rails.length; i += 3) {
+      results.push(...(await Promise.all(rails.slice(i, i + 3).map(fetchRail))));
+    }
+  } else {
+    results = await Promise.all(rails.map(fetchRail));
+  }
+
+  // The same blockbusters top multiple subjects/filters — keep each title
+  // only in the first rail of the group it appears in
+  const seen = new Set<string>();
+  for (const c of results) {
+    c.items = c.items.filter((i) => {
+      if (seen.has(i.id)) return false;
+      seen.add(i.id);
+      return true;
+    });
+  }
+
+  return results.filter((c) => c.items.length > 0);
+}
+
+async function getGroup(group: Group): Promise<CarouselData[]> {
+  const cached = railCache.get(group);
+  if (cached && Date.now() - cached.ts < FRESH_MS) return cached.rails;
+
+  const fresh = await computeGroup(group);
+
+  // Merge: a rail missing from the fresh compute (outage) survives from cache
+  const freshKeys = new Set(fresh.map((c) => c.key));
+  const survivors = (cached?.rails || []).filter((c) => !freshKeys.has(c.key));
+  const railOrder = buildRails().map((r) => r.key);
+  const merged = [...fresh, ...survivors].sort(
+    (a, b) => railOrder.indexOf(a.key) - railOrder.indexOf(b.key)
   );
 
-  const fetchRail = async (rail: RailDef): Promise<CarouselData> => {
-    try {
-      const items = (await rail.fetchPage(1)).filter((i) => i.cover_image_url);
-      return { key: rail.key, title: rail.title, type: rail.type, items };
-    } catch {
-      return { key: rail.key, title: rail.title, type: rail.type, items: [] };
-    }
-  };
+  railCache.set(group, { rails: merged, ts: Date.now() });
+  return merged;
+}
 
-  // Jikan allows ~3 req/s — strictly sequential, with a politeness gap.
-  // When MAL is having a bad day (504s), each rail burns retry time, so the
-  // whole task gets a budget: past 8s we ship whatever we have and the
-  // missing rails come back on the next request (route is force-dynamic).
-  const jikanTask = (async () => {
-    const out: CarouselData[] = [];
-    const deadline = Date.now() + 8000;
-    for (const rail of jikanRails) {
-      out.push(await fetchRail(rail));
-      if (Date.now() > deadline) break;
-      await new Promise((r) => setTimeout(r, 350));
-    }
-    return out;
-  })();
-
-  // IGDB allows 4 req/s — run in waves of 3
-  const igdbTask = (async () => {
-    const out: CarouselData[] = [];
-    for (let i = 0; i < igdbRails.length; i += 3) {
-      out.push(...(await Promise.all(igdbRails.slice(i, i + 3).map(fetchRail))));
-    }
-    return out;
-  })();
-
-  const [parallelResults, jikanResults, igdbResults] = await Promise.all([
-    Promise.all(parallelRails.map(fetchRail)),
-    jikanTask,
-    igdbTask,
-  ]);
-
-  const byKey = new Map<string, CarouselData>();
-  for (const c of [...parallelResults, ...jikanResults, ...igdbResults]) {
-    byKey.set(c.key, c);
-  }
-
-  // The same blockbusters (Harry Potter…) top multiple Open Library subjects —
-  // keep each book only in the first row it appears in. Same for anime, where
-  // top-airing and seasonal overlap heavily.
-  for (const type of ["book", "anime"]) {
-    const seen = new Set<string>();
-    for (const rail of rails) {
-      if (rail.type !== type) continue;
-      const c = byKey.get(rail.key);
-      if (!c) continue;
-      c.items = c.items.filter((i) => {
-        if (seen.has(i.id)) return false;
-        seen.add(i.id);
-        return true;
-      });
-    }
-  }
-
-  // Interleave mediums so no format lives in the basement: cycle
-  // film → tv → anime → game → book until every rail is placed.
+/** Cycle film → tv → anime → game → book so no medium sinks to the bottom */
+function interleave(carousels: CarouselData[]): CarouselData[] {
   const buckets: Record<string, CarouselData[]> = {};
-  for (const rail of rails) {
-    const c = byKey.get(rail.key);
-    if (!c || c.items.length === 0) continue;
-    (buckets[rail.type] ||= []).push(c);
-  }
+  for (const c of carousels) (buckets[c.type] ||= []).push(c);
   const cycle = ["film", "tv", "anime", "game", "book"];
   const ordered: CarouselData[] = [];
   let remaining = true;
@@ -110,6 +116,16 @@ export async function GET() {
       }
     }
   }
+  return ordered;
+}
 
-  return NextResponse.json(ordered);
+export async function GET(request: NextRequest) {
+  const group = new URL(request.url).searchParams.get("group") as Group | null;
+
+  if (group && GROUPS.includes(group)) {
+    return NextResponse.json(await getGroup(group));
+  }
+
+  const all = await Promise.all(GROUPS.map(getGroup));
+  return NextResponse.json(interleave(all.flat()));
 }

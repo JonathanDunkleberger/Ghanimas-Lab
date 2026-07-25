@@ -123,16 +123,20 @@ export async function getAnimeEpisodeCount(
 
 /**
  * Jikan rate-limits hard (~3 req/s) and 429s/504s under parallel load. List
- * endpoints retry with backoff, bypassing the data cache on retries so a
- * poisoned (rate-limited) cached body can't stick around.
+ * endpoints retry once with a short backoff, bypassing the data cache on the
+ * retry so a poisoned (rate-limited) cached body can't stick around.
+ *
+ * Each attempt carries a hard abort timeout: when MAL is having an outage,
+ * a rail must fail in ~3s, not hang the whole home page. Missing rails
+ * self-heal on the next request.
  */
 async function jikanList(url: string, revalidate: number = 3600): Promise<any[]> {
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(
-        url,
-        attempt === 0 ? { next: { revalidate } } : { cache: "no-store" }
-      );
+      const res = await fetch(url, {
+        ...(attempt === 0 ? { next: { revalidate } } : { cache: "no-store" }),
+        signal: AbortSignal.timeout(3000),
+      });
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json?.data)) return json.data;
@@ -140,7 +144,7 @@ async function jikanList(url: string, revalidate: number = 3600): Promise<any[]>
     } catch {
       // retry below
     }
-    if (attempt < 2) await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
+    if (attempt < 1) await new Promise((r) => setTimeout(r, 500));
   }
   return [];
 }

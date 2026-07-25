@@ -2,14 +2,14 @@
 
 import { useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
-import { useQuery } from "@tanstack/react-query";
 import { Tv, Gamepad2, BookOpen, Monitor, Film, Flame, Trophy, Sparkles, Zap, Rocket, Timer, Star, RefreshCw } from "lucide-react";
 import { HeroBanner } from "@/components/dashboard/HeroBanner";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { MediaCarousel } from "@/components/media/MediaCarousel";
-import { useAppStore, type MediaItem } from "@/stores/app-store";
+import { useAppStore } from "@/stores/app-store";
 import { useMediaStore } from "@/stores/media-store";
+import { useHomeRails } from "@/hooks/useHomeRails";
 import { buildActivityEntries, buildHomeStats } from "@/lib/library-stats";
 import type { MediaType } from "@/lib/constants";
 
@@ -54,13 +54,6 @@ const CAROUSEL_ICON: Record<string, typeof Tv> = {
   "horror-books": Flame,
   "history-books": BookOpen,
 };
-
-interface CarouselData {
-  key: string;
-  title: string;
-  type: string;
-  items: MediaItem[];
-}
 
 export default function HomePage() {
   const { user } = useUser();
@@ -119,16 +112,10 @@ export default function HomePage() {
     [homeStats]
   );
 
-  const { data: carousels = [], isLoading, isError, refetch } = useQuery<CarouselData[]>({
-    queryKey: ["home-carousels"],
-    queryFn: async () => {
-      const res = await fetch("/api/home-carousels");
-      if (!res.ok) throw new Error("Failed to fetch carousels");
-      return res.json();
-    },
-    staleTime: 30 * 60 * 1000, // 30 min
-    refetchOnWindowFocus: false,
-  });
+  // Rails load per provider group and render as each lands — film/TV rows
+  // paint in a few hundred ms even when another provider is slow or down
+  const { carousels, isLoading, isFetchingAny, isError, refetch } =
+    useHomeRails();
 
   return (
     <div className="animate-fadeIn">
@@ -171,17 +158,34 @@ export default function HomePage() {
             </div>
           ))
         ) : (
-          carousels.map((c) => (
-            <MediaCarousel
-              key={c.key}
-              title={c.title}
-              items={c.items}
-              onItemClick={setSelectedItem}
-              icon={CAROUSEL_ICON[c.key] || ICON_MAP[c.type] || Sparkles}
-              type={c.type as MediaType}
-              railKey={c.key}
-            />
-          ))
+          <>
+            {carousels.map((c) => (
+              <MediaCarousel
+                key={c.key}
+                title={c.title}
+                items={c.items}
+                onItemClick={setSelectedItem}
+                icon={CAROUSEL_ICON[c.key] || ICON_MAP[c.type] || Sparkles}
+                type={c.type as MediaType}
+                railKey={c.key}
+              />
+            ))}
+            {/* Some provider groups still in flight — keep skeletons below */}
+            {isFetchingAny &&
+              Array.from({ length: 2 }).map((_, i) => (
+                <div key={`sk-${i}`} className="mb-8">
+                  <div className="mb-3 h-5 w-48 animate-pulse rounded bg-white/[0.04]" />
+                  <div className="flex gap-4" style={{ overflow: "hidden" }}>
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <div
+                        key={j}
+                        className="aspect-[2/3] w-[172px] shrink-0 animate-pulse rounded-xl bg-white/[0.03]"
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </>
         )}
       </div>
 

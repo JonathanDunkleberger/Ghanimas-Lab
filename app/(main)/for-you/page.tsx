@@ -15,20 +15,13 @@ import {
   Tv,
   Gamepad2,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { MediaCarousel } from "@/components/media/MediaCarousel";
 import { useAppStore, type MediaItem } from "@/stores/app-store";
 import { useMediaStore } from "@/stores/media-store";
+import { useHomeRails } from "@/hooks/useHomeRails";
 import { CatLogo } from "@/components/shared/CatLogo";
 import { MEDIA_TYPES, type MediaType } from "@/lib/constants";
 import { buildTasteProfile, scoreMedia, type TasteProfile } from "@/lib/recommendations/engine";
-
-interface CarouselData {
-  key: string;
-  title: string;
-  type: string;
-  items: MediaItem[];
-}
 
 interface ScoredItem {
   item: MediaItem;
@@ -85,16 +78,9 @@ export default function ForYouPage() {
 
   const hasFavorites = favorites.length > 0;
 
-  // Fetch real carousels to power the recommendation pool
-  const { data: carousels = [], isLoading } = useQuery<CarouselData[]>({
-    queryKey: ["home-carousels"],
-    queryFn: async () => {
-      const res = await fetch("/api/home-carousels");
-      if (!res.ok) return [];
-      return res.json();
-    },
-    staleTime: 30 * 60 * 1000,
-  });
+  // Real carousels power the recommendation pool — fetched per provider
+  // group so rails appear as each source lands instead of all-or-nothing
+  const { carousels, isLoading } = useHomeRails();
 
   // ── Real taste profile via the recommendation engine ──
   const tasteProfile: TasteProfile | null = useMemo(() => {
