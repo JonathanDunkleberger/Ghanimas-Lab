@@ -60,11 +60,13 @@ Built end-to-end as a solo project: scoping a real problem, shipping discovery U
 | Recommend across mediums | For You scoring + diversity weighting + rails named after *your* favorites |
 | Depth per title, JustWatch-style | Runtime, binge time, time-to-beat, read/listen estimates, external scores, cast, franchises, streaming links |
 | No dead ends | Related-titles and Explore-more strips on every card keep the loop going |
+| A library you can wander | Per-medium browse sections with genre pills, free-text themes, and curated era timelines |
+| Feels fast, stays fast | Provider-grouped progressive loading, SWR caching, hover prefetch, hard upstream timeouts |
 | Zero-friction start | Everything works anonymously; sign-in only for discussion |
 
 ### Home — unified discovery
 
-Trending rails across all five mediums, a live activity feed, and stats computed from your actual library (hours this week, current streak, average rating).
+Twenty-plus trending rails across all five mediums — each one an infinite horizontal scroll that keeps paging in fresh titles — plus a live activity feed and stats computed from your actual library (hours this week, current streak, average rating). Rails load progressively by provider, so film and TV paint in a few hundred milliseconds while slower sources stream in behind them.
 
 <p align="center">
   <img src="docs/screenshots/01-homepage.png" alt="Homepage with trending rails, activity feed, and live stats" width="100%" />
@@ -84,12 +86,26 @@ Every title is enriched on open — and the enrichment is prefetched the moment 
   <img src="docs/screenshots/02-media-detail.png" alt="Media detail modal with scores, stats chips, and actions" width="100%" />
 </p>
 
+The same depth applies to books — page counts, reading and audiobook time, Open Library ratings, an Audible link, and a "More by this author" strip:
+
+<p align="center">
+  <img src="docs/screenshots/03-book-detail.png" alt="Book detail modal with reading time, audiobook length, and author strip" width="100%" />
+</p>
+
+### The Library — deep browse per medium
+
+Each medium gets its own wing: a dense, infinitely-scrolling grid with genre pills, free-text theme search ("philosophy", "time travel", "soulslike"), sort controls, and an interactive **era timeline** — tap "Golden Age & High Fantasy" or "New Hollywood" and the shelf filters to that period with a one-line history of why it mattered. It's meant to work like a digital library: type "stoicism" into the book wing and walk out with an audiobook.
+
+<p align="center">
+  <img src="docs/screenshots/04-library-books.png" alt="Book library with genre pills, era timeline, and browse grid" width="100%" />
+</p>
+
 ### Collection — your library
 
 Favorites, completed, and want-to lists with per-medium filters, plus a stats strip (estimated hours finished, top genre) derived from what you've tracked.
 
 <p align="center">
-  <img src="docs/screenshots/03-collection.png" alt="Collection page with list tabs and stats strip" width="100%" />
+  <img src="docs/screenshots/05-collection.png" alt="Collection page with list tabs and stats strip" width="100%" />
 </p>
 
 ### For You — taste-aware recommendations
@@ -97,7 +113,7 @@ Favorites, completed, and want-to lists with per-medium filters, plus a stats st
 A scoring engine builds a taste profile from your library (genres, mediums, ratings) and ranks every candidate against it. Rails explain themselves — and they're personal: "Because you played The Witcher 3" or "From screen to page" instead of a generic genre label. Items are deduplicated across rails so the page reads like a magazine, not an echo.
 
 <p align="center">
-  <img src="docs/screenshots/04-for-you.png" alt="For You page with personalized rails" width="100%" />
+  <img src="docs/screenshots/06-for-you.png" alt="For You page with personalized rails" width="100%" />
 </p>
 
 ### Wrapped — your year (or month, or week) in review
@@ -105,7 +121,7 @@ A scoring engine builds a taste profile from your library (genres, mediums, rati
 A Spotify-Wrapped-style story: total hours, top titles, genre breakdown, streaks, and a taste personality — all computed from the event history, shareable as an Open Graph card.
 
 <p align="center">
-  <img src="docs/screenshots/05-wrapped.png" alt="Wrapped slide showing total hours consumed" width="100%" />
+  <img src="docs/screenshots/07-wrapped.png" alt="Wrapped slide showing total hours consumed" width="100%" />
 </p>
 
 ### Analytics — the quantified library
@@ -113,7 +129,7 @@ A Spotify-Wrapped-style story: total hours, top titles, genre breakdown, streaks
 Hours by medium over time, library status, rating distribution, genre radar, and a daily activity heatmap. No demo numbers — every chart reads from the same event log.
 
 <p align="center">
-  <img src="docs/screenshots/06-analytics.png" alt="Analytics dashboard with charts computed from the library" width="100%" />
+  <img src="docs/screenshots/08-analytics.png" alt="Analytics dashboard with charts computed from the library" width="100%" />
 </p>
 
 ---
@@ -132,6 +148,10 @@ Hours by medium over time, library status, rating distribution, genre radar, and
 ### The unified media model
 
 Every adapter normalizes its source into one `MediaItem` shape — id, type, title, cover, genres, rating, runtime — so search, collection, recommendations, and stats never care where a title came from. Enrichment (cast, scores, links, time estimates) happens lazily in `/api/media/[slug]`, prefetched on card hover so opening a title feels instant; the cross-media Explore strip loads independently from `/api/explore-more` so it never blocks the details. Responses are cached with Next.js revalidation.
+
+### Staying fast when upstreams aren't
+
+Six free third-party APIs means somebody is always slow or down, so the app is built to degrade instead of hang: home rails load in **provider groups** (TMDB, IGDB, Jikan, Open Library) fetched in parallel and cached server-side with stale-while-revalidate; every upstream call carries a hard `AbortSignal` timeout so one flaky source can't stall a search fan-out; and shelves that depend on a live query fall back to that provider's cached top lists during an outage (MyAnimeList goes down more often than you'd think).
 
 ### How search ranking works
 
@@ -264,6 +284,10 @@ Ghanimas-Lab/
 Shipped:
 
 - [x] Cross-source search and trending rails
+- [x] The Library — per-medium browse wings with genre pills, theme search, and curated era timelines
+- [x] Infinite carousels backed by a 28-rail paged registry
+- [x] Progressive home loading (provider groups + server-side SWR cache)
+- [x] Outage resilience — hard upstream timeouts + cached-list fallbacks
 - [x] Popularity-weighted search ranking (per-source log-scaled signals)
 - [x] Open Library integration — popular book rails + quota-proof fallback
 - [x] Collection, ratings, For You, Wrapped
