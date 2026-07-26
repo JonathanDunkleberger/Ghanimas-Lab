@@ -998,6 +998,19 @@ export function MediaDetailPanel() {
             </div>
           )}
 
+          {/* 10b. ABOUT THE AUTHOR — books, via Open Library */}
+          {display.media_type === "book" &&
+            (() => {
+              const info = (display.metadata as Record<string, any>)?.author_info;
+              if (!info?.name || (!info.bio && !info.photo_url)) return null;
+              return <AboutAuthor key={`author-${display.id}`} info={info} />;
+            })()}
+
+          {/* 10c. COMMUNITY — books: rating distribution + reading-log counts */}
+          {display.media_type === "book" && (
+            <CommunityStats meta={display.metadata as Record<string, any>} />
+          )}
+
           {/* 11. RELATED TITLES — same medium: franchise, author, fan recs */}
           {relatedItems.length > 0 && (
             <PosterStrip
@@ -1020,6 +1033,174 @@ export function MediaDetailPanel() {
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+// ─── About the author (books, Open Library) ─────────────────────────────────
+function AboutAuthor({
+  info,
+}: {
+  info: {
+    name: string;
+    bio?: string;
+    photo_url?: string;
+    birth_date?: string;
+    death_date?: string;
+    ol_url?: string;
+  };
+}) {
+  const [expanded, setExpanded] = useState(false);
+  // OL bios carry wiki-style reference markup — strip "([Source][1])" and
+  // trailing "[1]: http://…" lines
+  const bio = (info.bio || "")
+    .replace(/\(\[source\]\[\d+\]\)/gi, "")
+    .split("\n")
+    .filter((l) => !/^\[\d+\]:/.test(l.trim()))
+    .join("\n")
+    .trim();
+  const dates = [info.birth_date, info.death_date].filter(Boolean).join(" – ");
+
+  const avatarFallback = (
+    <div className="flex h-full w-full items-center justify-center bg-fey-surface">
+      <User size={22} className="text-[#f0eeea]/15" />
+    </div>
+  );
+
+  return (
+    <div className="mb-5">
+      <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
+        About the Author
+      </h3>
+      <div className="flex gap-3.5">
+        <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full border border-white/[0.06]">
+          {info.photo_url ? (
+            <SafeImage
+              src={info.photo_url}
+              alt={info.name}
+              fill
+              className="object-cover"
+              sizes="56px"
+              fallback={avatarFallback}
+            />
+          ) : (
+            avatarFallback
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[13.5px] font-bold text-[#f0eeea]/85">
+              {info.name}
+            </span>
+            {dates && (
+              <span className="text-[10.5px] text-[#f0eeea]/30">{dates}</span>
+            )}
+          </div>
+          {bio && (
+            <>
+              <p
+                className={`mt-1 whitespace-pre-line text-[12px] leading-relaxed text-[#f0eeea]/50 ${
+                  expanded ? "" : "line-clamp-3"
+                }`}
+              >
+                {bio}
+              </p>
+              {bio.length > 220 && (
+                <button
+                  onClick={() => setExpanded((v) => !v)}
+                  className="mt-1 text-[11px] font-semibold text-[#f0eeea]/40 transition-colors hover:text-[#f0eeea]/70"
+                >
+                  {expanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Community stats (books) — Goodreads-style distribution + shelf counts ──
+function CommunityStats({ meta }: { meta?: Record<string, any> }) {
+  const dist = meta?.rating_distribution as Record<string, number> | undefined;
+  const stats = meta?.reading_stats as
+    | { want_to_read?: number; currently_reading?: number; already_read?: number }
+    | undefined;
+
+  const total = dist
+    ? [1, 2, 3, 4, 5].reduce((s, k) => s + (dist[String(k)] || 0), 0)
+    : 0;
+  const avg = meta?.rating_average as number | undefined;
+
+  const chips = [
+    stats?.currently_reading
+      ? `${formatCount(stats.currently_reading)} currently reading`
+      : null,
+    stats?.want_to_read
+      ? `${formatCount(stats.want_to_read)} want to read`
+      : null,
+    stats?.already_read ? `${formatCount(stats.already_read)} have read` : null,
+  ].filter(Boolean) as string[];
+
+  if (total === 0 && chips.length === 0) return null;
+
+  return (
+    <div className="mb-5">
+      <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[#f0eeea]/30">
+        Community
+      </h3>
+
+      {total > 0 && (
+        <>
+          {avg != null && (
+            <div className="mb-2 flex items-center gap-1.5 text-[13px]">
+              <Star size={13} className="fill-gold text-gold" />
+              <span className="font-bold text-[#f0eeea]/85">
+                {avg.toFixed(2)}
+              </span>
+              <span className="text-[11px] text-[#f0eeea]/35">
+                · {formatCount(total)} ratings on Open Library
+              </span>
+            </div>
+          )}
+          <div className="mb-3 space-y-1">
+            {[5, 4, 3, 2, 1].map((k) => {
+              const n = dist?.[String(k)] || 0;
+              const pct = total ? Math.round((n / total) * 100) : 0;
+              return (
+                <div key={k} className="flex items-center gap-2">
+                  <span className="w-8 text-right text-[10.5px] font-semibold text-[#f0eeea]/40">
+                    {k}★
+                  </span>
+                  <div className="h-[7px] flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                    <div
+                      className="h-full rounded-full bg-gold/70"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-16 text-[10px] text-[#f0eeea]/30">
+                    {formatCount(n)} ({pct}%)
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {chips.map((c) => (
+            <span
+              key={c}
+              className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-[#f0eeea]/50"
+            >
+              {c}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

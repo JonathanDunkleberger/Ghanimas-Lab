@@ -186,10 +186,45 @@ export async function fetchBooksBySubject(
 }
 
 /** Full work details for olw- slugs (work + ratings + a few editions + authors) */
+export interface OLAuthorInfo {
+  name: string;
+  bio?: string;
+  photo_url?: string;
+  birth_date?: string;
+  death_date?: string;
+  ol_url?: string;
+}
+
+function mapOLAuthor(a: any): OLAuthorInfo | null {
+  if (!a?.name) return null;
+  const photoId = (a.photos || []).find((p: number) => p > 0);
+  // Some records store the native-script name as primary (夏目漱石) —
+  // prefer a Latin-script variant for display
+  const hasLatin = (s: string) => /[A-Za-z]/.test(s);
+  let name: string = a.name;
+  if (!hasLatin(name)) {
+    const alt =
+      (a.alternate_names || []).find((n: string) => hasLatin(n)) ||
+      (a.personal_name && hasLatin(a.personal_name) ? a.personal_name : null);
+    if (alt) name = alt;
+  }
+  return {
+    name,
+    bio: typeof a.bio === "string" ? a.bio : a.bio?.value,
+    photo_url: photoId
+      ? `https://covers.openlibrary.org/a/id/${photoId}-M.jpg`
+      : undefined,
+    birth_date: a.birth_date,
+    death_date: a.death_date,
+    ol_url: a.key ? `https://openlibrary.org${a.key}` : undefined,
+  };
+}
+
 export async function getOpenLibraryWorkDetails(workId: string) {
-  const [workRes, ratingsRes, editionsRes, searchRes] = await Promise.allSettled([
+  const [workRes, ratingsRes, shelvesRes, editionsRes, searchRes] = await Promise.allSettled([
     fetch(`${OL_BASE}/works/${workId}.json`, { next: { revalidate: 86400 } }),
     fetch(`${OL_BASE}/works/${workId}/ratings.json`, { next: { revalidate: 86400 } }),
+    fetch(`${OL_BASE}/works/${workId}/bookshelves.json`, { next: { revalidate: 86400 } }),
     fetch(`${OL_BASE}/works/${workId}/editions.json?limit=10`, { next: { revalidate: 86400 } }),
     // The search index is the only reliable source of the true first-publish
     // year — editions are often modern reprints (HP1 "published 2025")
@@ -205,15 +240,16 @@ export async function getOpenLibraryWorkDetails(workId: string) {
   const work = await json(workRes);
   if (!work) return null;
   const ratings = await json(ratingsRes);
+  const shelves = await json(shelvesRes);
   const editions = await json(editionsRes);
   const searchDoc = (await json(searchRes))?.docs?.[0];
 
-  // Author names require follow-up fetches (work only stores refs)
+  // Author details require follow-up fetches (work only stores refs)
   const authorKeys: string[] = (work.authors || [])
     .map((a: any) => a?.author?.key)
     .filter(Boolean)
     .slice(0, 3);
-  const authorNames = (
+  const authors = (
     await Promise.all(
       authorKeys.map(async (key: string) => {
         try {
@@ -221,14 +257,14 @@ export async function getOpenLibraryWorkDetails(workId: string) {
             next: { revalidate: 86400 },
           });
           if (!res.ok) return null;
-          const a = await res.json();
-          return a?.name as string | null;
+          return mapOLAuthor(await res.json());
         } catch {
           return null;
         }
       })
     )
-  ).filter(Boolean) as string[];
+  ).filter(Boolean) as OLAuthorInfo[];
+  const authorNames = authors.map((a) => a.name);
 
   // Pick a representative edition for page count / publisher / ISBN
   const editionEntries: any[] = editions?.entries || [];
@@ -254,6 +290,96 @@ export async function getOpenLibraryWorkDetails(workId: string) {
       | undefined,
     ratingAverage: ratings?.summary?.average as number | undefined,
     ratingCount: ratings?.summary?.count as number | undefined,
+    // Star-by-star counts, Goodreads-style: { "1": n, ..., "5": n }
+    ratingDistribution: ratings?.counts as Record<string, number> | undefined,
+    readingStats: shelves?.counts
+      ? {
+          want_to_read: shelves.counts.want_to_read as number | undefined,
+          currently_reading: shelves.counts.currently_reading as number | undefined,
+          already_read: shelves.counts.already_read as number | undefined,
+        }
+      : undefined,
+    authors,
     authorNames,
   };
+}
+
+/**
+ * Resolve an author by name → bio, photo, dates. Used for Google Books
+ * titles, which only carry the author's name.
+ */
+export async function getOpenLibraryAuthorByName(name: string) {
+  try {
+    const res = await fetch(
+      `${OL_BASE}/search/authors.json?q=${encodeURIComponent(name)}&limit=10`,
+      { next: { revalidate: 86400 }, signal: AbortSignal.timeout(4000) }
+    );
+    if (!res.ok) return null;
+    const docs: any[] = (await res.json())?.docs || [];
+    // Top hit is often a near-namesake ("Frank Herbert" → "Frank Herbert
+    // Hayward") — prefer an exact name match, break ties by prolificness
+    const target = name.trim().toLowerCase();
+    const exact = docs
+      .filter((d) => (d.name || "").trim().toLowerCase() === target)
+      .sort((a, b) => (b.work_count || 0) - (a.work_count || 0));
+    const key = (exact[0] || docs.sort((a, b) => (b.work_count || 0) - (a.work_count || 0))[0])?.key;
+    if (!key) return null;
+    const authorRes = await fetch(`${OL_BASE}/authors/${key}.json`, {
+      next: { revalidate: 86400 },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!authorRes.ok) return null;
+    return mapOLAuthor(await authorRes.json());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a work by title+author → community stats (rating distribution,
+ * reading-log counts). Best-effort enrichment for Google Books titles.
+ */
+export async function getOpenLibraryWorkStats(title: string, author?: string) {
+  try {
+    const q = [`title:"${title}"`, author ? `author:"${author}"` : null]
+      .filter(Boolean)
+      .join(" AND ");
+    // Query is title+author constrained, so popularity sort safely picks the
+    // canonical work over obscure same-titled entries
+    const res = await fetch(
+      `${OL_BASE}/search.json?q=${encodeURIComponent(q)}&fields=key&sort=readinglog&limit=1`,
+      { next: { revalidate: 86400 }, signal: AbortSignal.timeout(4000) }
+    );
+    if (!res.ok) return null;
+    const workKey = (await res.json())?.docs?.[0]?.key as string | undefined;
+    if (!workKey) return null;
+    const [ratingsRes, shelvesRes] = await Promise.allSettled([
+      fetch(`${OL_BASE}${workKey}/ratings.json`, {
+        next: { revalidate: 86400 },
+        signal: AbortSignal.timeout(4000),
+      }),
+      fetch(`${OL_BASE}${workKey}/bookshelves.json`, {
+        next: { revalidate: 86400 },
+        signal: AbortSignal.timeout(4000),
+      }),
+    ]);
+    const json = async (r: PromiseSettledResult<Response>) =>
+      r.status === "fulfilled" && r.value.ok ? r.value.json() : null;
+    const ratings = await json(ratingsRes);
+    const shelves = await json(shelvesRes);
+    return {
+      ratingAverage: ratings?.summary?.average as number | undefined,
+      ratingCount: ratings?.summary?.count as number | undefined,
+      ratingDistribution: ratings?.counts as Record<string, number> | undefined,
+      readingStats: shelves?.counts
+        ? {
+            want_to_read: shelves.counts.want_to_read as number | undefined,
+            currently_reading: shelves.counts.currently_reading as number | undefined,
+            already_read: shelves.counts.already_read as number | undefined,
+          }
+        : undefined,
+    };
+  } catch {
+    return null;
+  }
 }

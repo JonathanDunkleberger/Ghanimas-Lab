@@ -6,6 +6,8 @@ import { getGameDetails, igdbWebsiteLabel, secondsToHours } from "@/lib/api/igdb
 import { getBookDetails, bookCoverUrl, searchBooks } from "@/lib/api/books";
 import {
   getOpenLibraryWorkDetails,
+  getOpenLibraryAuthorByName,
+  getOpenLibraryWorkStats,
   cleanSubjects,
   searchOpenLibrary,
   normalizeOpenLibraryDoc,
@@ -415,6 +417,10 @@ export async function GET(
             publishedDate: details.publishDate,
             pageCount: details.pageCount,
             ratingsCount: details.ratingCount,
+            rating_average: details.ratingAverage,
+            rating_distribution: details.ratingDistribution,
+            reading_stats: details.readingStats,
+            author_info: details.authors[0],
             links,
           },
         };
@@ -498,19 +504,31 @@ export async function GET(
           },
         };
 
-        // "More by this author"
+        // Enrich in parallel: more-by-author strip, plus Open Library's
+        // author bio and community stats (Google Books has neither)
         const firstAuthor = (vol.authors || [])[0];
-        if (firstAuthor) {
-          try {
-            const rows = await searchBooks(`inauthor:"${firstAuthor}"`);
-            const more = (rows as any[])
-              .filter((b: any) => b.id !== sourceId)
-              .map(normalizeBook)
-              .filter((b: MediaItem) => b.cover_image_url)
-              .slice(0, 12);
-            if (more.length > 0) media.related = more;
-          } catch {
-            // strip simply won't render
+        const [moreRows, authorInfo, workStats] = await Promise.all([
+          firstAuthor
+            ? searchBooks(`inauthor:"${firstAuthor}"`).catch(() => [])
+            : Promise.resolve([]),
+          firstAuthor ? getOpenLibraryAuthorByName(firstAuthor) : Promise.resolve(null),
+          vol.title
+            ? getOpenLibraryWorkStats(vol.title, firstAuthor)
+            : Promise.resolve(null),
+        ]);
+        const more = (moreRows as any[])
+          .filter((b: any) => b.id !== sourceId)
+          .map(normalizeBook)
+          .filter((b: MediaItem) => b.cover_image_url)
+          .slice(0, 12);
+        if (more.length > 0) media.related = more;
+        if (authorInfo) media.metadata!.author_info = authorInfo;
+        if (workStats) {
+          media.metadata!.rating_distribution = workStats.ratingDistribution;
+          media.metadata!.reading_stats = workStats.readingStats;
+          media.metadata!.rating_average = workStats.ratingAverage;
+          if (!media.metadata!.ratingsCount && workStats.ratingCount) {
+            media.metadata!.ratingsCount = workStats.ratingCount;
           }
         }
       }
