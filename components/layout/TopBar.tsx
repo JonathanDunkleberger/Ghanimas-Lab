@@ -1,15 +1,25 @@
 "use client";
 
-import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
+import { useState } from "react";
+import { SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import { SearchBar } from "./SearchBar";
 import { CatLogo } from "@/components/shared/CatLogo";
+import { ProfileModal } from "@/components/profile/ProfileModal";
+import { getProfileAvatar, PROFILE_AVATARS } from "@/components/profile/avatars";
 import { useAppStore } from "@/stores/app-store";
 
 export function TopBar() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user } = useUser();
   const { sidebarOpen } = useAppStore();
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const avatar =
+    getProfileAvatar(
+      (user?.unsafeMetadata as { avatar?: string } | undefined)?.avatar
+    ) || PROFILE_AVATARS[0];
 
   return (
+    <>
     <header
       className="f-topbar fixed top-0 right-0 z-50 flex h-[4.25rem] md:h-[4.75rem] items-center gap-3 border-b border-silver/10 px-3 lg:px-5 transition-all duration-300"
       style={{
@@ -57,16 +67,21 @@ export function TopBar() {
             </SignUpButton>
           </div>
         ) : (
-          <UserButton
-            afterSignOutUrl="/"
-            appearance={{
-              elements: {
-                avatarBox: "h-8 w-8",
-              },
-            }}
-          />
+          <button
+            onClick={() => setProfileOpen(true)}
+            aria-label="Open profile"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-base transition-transform hover:scale-110"
+            style={{ background: avatar.bg }}
+          >
+            {avatar.emoji}
+          </button>
         )}
       </div>
     </header>
+
+    {/* Outside <header>: its backdrop-filter would otherwise trap this
+        fixed-position overlay inside the bar */}
+    <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+    </>
   );
 }

@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
+import { parseEmojiAvatar } from "@/components/profile/avatars";
 import {
   useCreatePost,
   useDeletePost,
@@ -95,7 +96,16 @@ export function RoomPost({ post, mediaId, depth = 0 }: RoomPostProps) {
                 {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
               </button>
             )}
-            {post.profile?.avatar_url ? (
+            {parseEmojiAvatar(post.profile?.avatar_url) ? (
+              <div
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[13px]"
+                style={{
+                  background: parseEmojiAvatar(post.profile?.avatar_url)!.bg,
+                }}
+              >
+                {parseEmojiAvatar(post.profile?.avatar_url)!.emoji}
+              </div>
+            ) : post.profile?.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={post.profile.avatar_url}

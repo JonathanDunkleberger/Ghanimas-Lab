@@ -59,7 +59,12 @@ export default function HomePage() {
   const { user } = useUser();
   const { setSelectedItem } = useAppStore();
 
-  const firstName = user?.firstName || user?.username || "Explorer";
+  const firstName =
+    (user?.unsafeMetadata as { displayName?: string } | undefined)
+      ?.displayName ||
+    user?.firstName ||
+    user?.username ||
+    "Explorer";
 
   const favorites = useMediaStore((s) => s.favorites);
   const watched = useMediaStore((s) => s.watched);

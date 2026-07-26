@@ -186,7 +186,11 @@ export function RabbitRoom({ media }: RabbitRoomProps) {
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-cream/25 hidden sm:inline">
                     Posting as{" "}
-                    {user?.username || user?.firstName || "you"}
+                    {(user?.unsafeMetadata as { displayName?: string })
+                      ?.displayName ||
+                      user?.username ||
+                      user?.firstName ||
+                      "you"}
                   </span>
                   <button
                     type="button"

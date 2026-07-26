@@ -27,10 +27,18 @@ export async function ensureProfile(userId: string): Promise<Profile | null> {
     clerkUser.username ||
     clerkUser.emailAddresses?.[0]?.emailAddress?.split("@")[0] ||
     null;
+  // Profile modal choices live in unsafeMetadata and win over Clerk defaults
+  const meta = (clerkUser.unsafeMetadata || {}) as {
+    displayName?: string;
+    avatar?: string;
+  };
   const displayName =
+    meta.displayName ||
     [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
     username;
-  const avatarUrl = clerkUser.imageUrl || null;
+  const avatarUrl = meta.avatar
+    ? `emoji:${meta.avatar}`
+    : clerkUser.imageUrl || null;
 
   const { data, error } = await supabase
     .from("profiles")
