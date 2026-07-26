@@ -13,7 +13,7 @@ function tmdbUrl(path: string, params: Record<string, string> = {}) {
 export async function searchTMDB(query: string) {
   const res = await fetch(
     tmdbUrl("/search/multi", { query, include_adult: "false" }),
-    { next: { revalidate: 300 } }
+    { next: { revalidate: 300 }, signal: AbortSignal.timeout(5000) }
   );
   if (!res.ok) {
     console.error(`TMDB search failed: ${res.status} ${res.statusText}`);

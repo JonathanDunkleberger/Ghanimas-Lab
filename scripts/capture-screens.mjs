@@ -197,21 +197,50 @@ async function shot(path, name, opts = {}) {
   console.log("captured", name);
 }
 
+/** Search a title from the top bar and open the first result's detail modal. */
+async function detailShot(query, name) {
+  await page.goto(`${FAKE}/`, { waitUntil: "load", timeout: 90_000 });
+  await page.waitForTimeout(3000);
+  const input = page.getByPlaceholder(/search anime/i);
+  await input.click();
+  await input.fill(query);
+  await page.waitForTimeout(4000); // debounce + search fan-out
+  const card = page.locator("div.grid img").first();
+  await card.waitFor({ timeout: 30_000 });
+  const box = await card.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(8000); // enrichment: cast, scores, related strips
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/${name}` });
+  console.log("captured", name);
+}
+
 // ── 3. Capture ───────────────────────────────────────────────────────────────
 await shot("/", "01-homepage.png", { settle: 9000 });
 
-// Media detail — open the first poster card on the home page
-const cardBox = await page.locator("section img").first().boundingBox();
-await page.mouse.click(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
-await page.waitForTimeout(6000);
-await page.screenshot({ path: `${OUT}/02-media-detail.png` });
-console.log("captured 02-media-detail.png");
+// Detail cards for famous titles — searched like a real user would
+await detailShot("one piece", "02-media-detail.png");
+await detailShot("dune frank herbert", "03-book-detail.png");
 
-await shot("/collection", "03-collection.png", { settle: 5000 });
-await shot("/for-you", "04-for-you.png", { settle: 9000 });
+// The Library — book browse section with genre pills + era timeline
+await shot("/browse/book", "04-library-books.png", {
+  settle: 9000,
+  before: async () => {
+    // Light up an era on the timeline so the curated-history blurb shows
+    const era = page.getByText("Golden Age & High Fantasy", { exact: false }).first();
+    if (await era.count()) {
+      await era.click();
+      await page.waitForTimeout(5000);
+    }
+  },
+});
+
+await shot("/collection", "05-collection.png", { settle: 5000 });
+await shot("/for-you", "06-for-you.png", { settle: 9000 });
 
 // Wrapped — advance to the Total Hours slide
-await shot("/wrapped", "05-wrapped.png", {
+await shot("/wrapped", "07-wrapped.png", {
   settle: 4000,
   before: async () => {
     await page.getByRole("button", { name: /next/i }).click();
@@ -219,7 +248,7 @@ await shot("/wrapped", "05-wrapped.png", {
   },
 });
 
-await shot("/analytics", "06-analytics.png", { settle: 5000 });
+await shot("/analytics", "08-analytics.png", { settle: 5000 });
 
 await browser.close();
 console.log("All screenshots written to", OUT);

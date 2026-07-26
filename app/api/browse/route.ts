@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { discoverTMDB, searchTMDBKeywords } from "@/lib/api/tmdb";
-import { browseAnime } from "@/lib/api/jikan";
+import { browseAnime, getTopAnime } from "@/lib/api/jikan";
 import { browseGames } from "@/lib/api/igdb";
 import { browseOpenLibraryAdvanced, normalizeOpenLibraryDoc } from "@/lib/api/openlibrary";
 import {
@@ -110,24 +110,42 @@ export async function GET(request: NextRequest) {
       }
 
       case "anime": {
-        const sortMap: Record<
-          SortKey,
-          "members" | "score" | "start_date_desc" | "start_date_asc"
-        > = {
-          popular: "members",
-          top: "score",
-          new: "start_date_desc",
-          old: "start_date_asc",
-        };
-        const rows = await browseAnime({
-          genre: category,
-          q,
-          yearFrom: era?.from,
-          yearTo: era?.to,
-          sort: sortMap[sort],
-          page,
-          limit: PAGE_SIZE,
-        });
+        const noFilters = !category && !q && !era;
+        let rows: any[] = [];
+
+        // The unfiltered shelf goes through /top/anime — served from Jikan's
+        // own cache, so it stays populated even during MAL outages (which
+        // regularly 504 the live /anime query endpoint)
+        if (noFilters && (sort === "popular" || sort === "top")) {
+          rows = await getTopAnime(
+            sort === "popular" ? "bypopularity" : "byscore",
+            25,
+            page
+          );
+        } else {
+          const sortMap: Record<
+            SortKey,
+            "members" | "score" | "start_date_desc" | "start_date_asc"
+          > = {
+            popular: "members",
+            top: "score",
+            new: "start_date_desc",
+            old: "start_date_asc",
+          };
+          rows = await browseAnime({
+            genre: category,
+            q,
+            yearFrom: era?.from,
+            yearTo: era?.to,
+            sort: sortMap[sort],
+            page,
+            limit: PAGE_SIZE,
+          });
+          // Live query failed (outage) with nothing to show → popularity list
+          if (rows.length === 0 && noFilters) {
+            rows = await getTopAnime("bypopularity", 25, page);
+          }
+        }
         items = rows.map((r: any) => normalizeJikan(r));
         break;
       }

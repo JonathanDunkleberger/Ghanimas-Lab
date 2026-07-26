@@ -90,6 +90,7 @@ export async function searchOpenLibrary(query: string, limit: number = 20) {
   });
   const res = await fetch(`${OL_BASE}/search.json?${params}`, {
     next: { revalidate: 300 },
+    signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) {
     console.error(`Open Library search failed (${res.status})`);

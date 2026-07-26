@@ -1,23 +1,33 @@
 const JIKAN_BASE = "https://api.jikan.moe/v4";
 
+// Search must never hang the global search-all fan-out: when MAL is having
+// an outage, fail in ~3s and let the other five sources carry the results.
 export async function searchAnime(query: string) {
-  const res = await fetch(
-    `${JIKAN_BASE}/anime?q=${encodeURIComponent(query)}&order_by=members&sort=desc&limit=20`,
-    { next: { revalidate: 300 } }
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data || [];
+  try {
+    const res = await fetch(
+      `${JIKAN_BASE}/anime?q=${encodeURIComponent(query)}&order_by=members&sort=desc&limit=20`,
+      { next: { revalidate: 300 }, signal: AbortSignal.timeout(3500) }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function searchManga(query: string) {
-  const res = await fetch(
-    `${JIKAN_BASE}/manga?q=${encodeURIComponent(query)}&order_by=members&sort=desc&limit=15`,
-    { next: { revalidate: 300 } }
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data || [];
+  try {
+    const res = await fetch(
+      `${JIKAN_BASE}/manga?q=${encodeURIComponent(query)}&order_by=members&sort=desc&limit=15`,
+      { next: { revalidate: 300 }, signal: AbortSignal.timeout(3500) }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -149,13 +159,15 @@ async function jikanList(url: string, revalidate: number = 3600): Promise<any[]>
   return [];
 }
 
+/** `byscore` = no filter param: Jikan's default top/anime ranking (by score) */
 export async function getTopAnime(
-  filter: "airing" | "upcoming" | "bypopularity" | "favorite" = "bypopularity",
+  filter: "airing" | "upcoming" | "bypopularity" | "favorite" | "byscore" = "bypopularity",
   limit: number = 20,
   page: number = 1
 ) {
+  const filterParam = filter === "byscore" ? "" : `filter=${filter}&`;
   return jikanList(
-    `${JIKAN_BASE}/top/anime?filter=${filter}&limit=${limit}&page=${page}`
+    `${JIKAN_BASE}/top/anime?${filterParam}limit=${limit}&page=${page}`
   );
 }
 

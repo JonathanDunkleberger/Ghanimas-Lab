@@ -11,6 +11,7 @@ export async function searchBooks(query: string) {
 
   const res = await fetch(`${GOOGLE_BOOKS_BASE}/volumes?${params}`, {
     next: { revalidate: 300 },
+    signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => "");

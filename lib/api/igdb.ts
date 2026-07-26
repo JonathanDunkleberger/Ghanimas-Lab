@@ -34,6 +34,7 @@ async function igdbFetch(endpoint: string, body: string) {
       Authorization: `Bearer ${token}`,
     },
     body,
+    signal: AbortSignal.timeout(6000),
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => "");

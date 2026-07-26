@@ -35,7 +35,8 @@ export default function MainLayout({
         `}</style>
         <div className="f-main-offset transition-[margin-left] duration-300">
           <TopBar />
-          <div className="px-4 lg:px-6 pb-24 pt-[70px] md:pb-6">
+          {/* Header is 4.25rem (68px) mobile / 4.75rem (76px) desktop — pad past it plus a breathing-room buffer */}
+          <div className="px-4 lg:px-6 pb-24 pt-[86px] md:pt-[96px] md:pb-6">
             {searchQuery ? <SearchResultsGrid /> : children}
           </div>
         </div>
