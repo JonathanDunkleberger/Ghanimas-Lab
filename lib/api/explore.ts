@@ -84,15 +84,24 @@ export async function buildExploreMore(media: {
     })
   );
 
-  // Round-robin across types for diversity
+  // Round-robin across types for diversity. Dedupe by normalized title too,
+  // so the same franchise doesn't appear as both the film and the book.
+  const titleKey = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const seenTitles = new Set<string>([titleKey(media.title)]);
   let added = true;
   while (picks.length < MAX_PICKS && added) {
     added = false;
     for (const { items } of pools) {
       if (picks.length >= MAX_PICKS) break;
-      const next = items.find((i) => i.cover_image_url && !exclude.has(i.id));
+      const next = items.find(
+        (i) =>
+          i.cover_image_url &&
+          !exclude.has(i.id) &&
+          !seenTitles.has(titleKey(i.title))
+      );
       if (next) {
         exclude.add(next.id);
+        seenTitles.add(titleKey(next.title));
         picks.push(next);
         added = true;
       }
@@ -146,7 +155,8 @@ async function fetchPoolForType(
     }
     case "game": {
       if (concept) {
-        const rows = await getGamesByGenre(concept.igdb, 12);
+        // High vote floor: explore should surface Witcher 3, not a cult mod
+        const rows = await getGamesByGenre(concept.igdb, 12, 0, 300);
         if (rows.length) return rows.map(normalizeIGDB);
       }
       const rows = await getTopRatedGames(12);

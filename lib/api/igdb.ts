@@ -155,13 +155,14 @@ export async function getTopRatedGames(limit: number = 20, offset: number = 0) {
 export async function getGamesByGenre(
   genreId: number,
   limit: number = 20,
-  offset: number = 0
+  offset: number = 0,
+  minVotes: number = 20
 ) {
   return igdbFetch(
     "/games",
     `fields name,cover.url,first_release_date,genres.name,
             rating,summary,involved_companies.company.name;
-     where genres = (${genreId}) & rating > 70 & rating_count > 20;
+     where genres = (${genreId}) & rating > 70 & rating_count > ${minVotes};
      sort rating desc;
      limit ${limit};
      offset ${offset};`
