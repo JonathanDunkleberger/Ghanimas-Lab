@@ -197,19 +197,54 @@ async function shot(path, name, opts = {}) {
   console.log("captured", name);
 }
 
-/** Search a title from the top bar and open the first result's detail modal. */
-async function detailShot(query, name) {
+/**
+ * Search a title from the top bar and open a result's detail modal.
+ * Pass mediaType to open the first result of that type (badge text match).
+ */
+async function detailShot(query, name, mediaType) {
   await page.goto(`${FAKE}/`, { waitUntil: "load", timeout: 90_000 });
   await page.waitForTimeout(3000);
   const input = page.getByPlaceholder(/search anime/i);
   await input.click();
   await input.fill(query);
   await page.waitForTimeout(4000); // debounce + search fan-out
-  const card = page.locator("div.grid img").first();
+  // Card text includes the lowercase type badge ("book", "film", …)
+  let card = page.locator("div.grid img").first();
+  if (mediaType) {
+    card = page
+      .locator("div.grid > div")
+      .filter({ hasText: mediaType })
+      .locator("img")
+      .first();
+  }
   await card.waitFor({ timeout: 30_000 });
+  await card.scrollIntoViewIfNeeded();
   const box = await card.boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(8000); // enrichment: cast, scores, related strips
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/${name}` });
+  console.log("captured", name);
+}
+
+/**
+ * Open a title through a Library wing's own search — deterministic media
+ * type, since the wing grid only contains that medium.
+ */
+async function libraryDetailShot(type, query, name) {
+  await page.goto(`${FAKE}/browse/${type}`, { waitUntil: "load", timeout: 90_000 });
+  await page.waitForTimeout(5000);
+  const input = page.getByPlaceholder(/genre/i); // the wing's own search box
+  await input.click();
+  await input.fill(query);
+  await page.waitForTimeout(7000); // 450ms debounce + browse fetch
+  const card = page.locator("div.grid img").first();
+  await card.waitFor({ timeout: 30_000 });
+  await card.scrollIntoViewIfNeeded();
+  const box = await card.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(8000);
   await page.mouse.move(5, 5);
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${OUT}/${name}` });
@@ -221,7 +256,7 @@ await shot("/", "01-homepage.png", { settle: 9000 });
 
 // Detail cards for famous titles — searched like a real user would
 await detailShot("one piece", "02-media-detail.png");
-await detailShot("dune frank herbert", "03-book-detail.png");
+await libraryDetailShot("book", "dune", "03-book-detail.png");
 
 // The Library — book browse section with genre pills + era timeline
 await shot("/browse/book", "04-library-books.png", {

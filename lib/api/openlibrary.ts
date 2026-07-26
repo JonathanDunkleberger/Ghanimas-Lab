@@ -62,12 +62,17 @@ export async function browseOpenLibraryAdvanced(opts: {
 
   const params = new URLSearchParams({
     q: parts.join(" AND "),
-    sort: opts.sort,
     limit: String(opts.limit),
     page: String(opts.page),
     fields: OL_FIELDS,
     lang: "en",
   });
+  // With a free-text query, OL's sort param reorders ALL full-text matches by
+  // that metric — "dune" sorted by readinglog returns Jane Eyre before Herbert.
+  // Relevance ranking (no sort) respects the query; explicit sorts still apply.
+  if (!(opts.q && opts.sort === "readinglog")) {
+    params.set("sort", opts.sort);
+  }
   const res = await fetch(`${OL_BASE}/search.json?${params}`, {
     next: { revalidate: 3600 },
     signal: AbortSignal.timeout(8000),
