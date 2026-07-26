@@ -35,7 +35,9 @@ export function MediaCard({ item, onClick }: MediaCardProps) {
       queryKey: ["media-detail", item.slug],
       queryFn: async () => {
         const res = await fetch(`/api/media/${item.slug}`);
-        if (!res.ok) return item;
+        // Same rule as the panel: never cache a failed enrichment as success,
+        // or the detail modal stays basic for the full staleTime
+        if (!res.ok) throw new Error(`Detail prefetch failed (${res.status})`);
         return res.json();
       },
       staleTime: 24 * 60 * 60 * 1000,

@@ -10,7 +10,11 @@ export async function GET(request: NextRequest) {
   const id = sp.get("id") || "";
   const type = sp.get("type") || "film";
   const title = sp.get("title") || "";
-  const genre = sp.get("genre") || "";
+  // All genres + tags, pipe-joined — the concept matcher scans the whole set
+  const genres = (sp.get("genres") || sp.get("genre") || "")
+    .split("|")
+    .map((g) => g.trim())
+    .filter(Boolean);
 
   if (!id) return NextResponse.json([]);
 
@@ -19,7 +23,7 @@ export async function GET(request: NextRequest) {
       id,
       media_type: type,
       title,
-      genres: genre ? [genre] : [],
+      genres,
     });
     return NextResponse.json(items);
   } catch (error) {

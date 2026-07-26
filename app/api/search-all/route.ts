@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { searchTMDB } from "@/lib/api/tmdb";
 import { searchAnime, searchManga } from "@/lib/api/jikan";
 import { searchGames } from "@/lib/api/igdb";
-import { searchBooks, bookCoverUrl } from "@/lib/api/books";
+import { searchBooks, bookCoverUrl, stripHtml } from "@/lib/api/books";
 import { searchOpenLibrary, normalizeOpenLibraryDoc } from "@/lib/api/openlibrary";
 
 // TMDB Genre ID → Name Map
@@ -241,7 +241,7 @@ export async function GET(request: NextRequest) {
                 title: vi.title || "",
                 slug: `gbook-${r.id}`,
                 cover_image_url: bookCoverUrl(vi),
-                description: vi.description,
+                description: stripHtml(vi.description),
                 year: (vi.publishedDate || "").slice(0, 4),
                 rating: (vi.averageRating || 0) * 20,
                 genres: vi.categories || [],

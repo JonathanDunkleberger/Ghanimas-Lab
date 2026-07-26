@@ -1,5 +1,26 @@
 const GOOGLE_BOOKS_BASE = "https://www.googleapis.com/books/v1";
 
+/**
+ * Google Books descriptions arrive as HTML fragments (<b>, <i>, <br>, entities).
+ * Flatten to readable plain text before it ever reaches the UI.
+ */
+export function stripHtml(input?: string): string | undefined {
+  if (!input) return input ?? undefined;
+  return input
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function searchBooks(query: string) {
   const params = new URLSearchParams({
     q: query,

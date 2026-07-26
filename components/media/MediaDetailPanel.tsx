@@ -147,7 +147,11 @@ export function MediaDetailPanel() {
       queryKey: ["media-detail", selectedItem?.slug],
       queryFn: async () => {
         const res = await fetch(`/api/media/${selectedItem!.slug}`);
-        if (!res.ok) return selectedItem!;
+        // Throw, don't swallow: returning the basic card here would cache a
+        // transient outage (e.g. MAL 504s) as "fresh" for 24h, leaving the
+        // panel permanently skeleton-level. An error keeps the placeholder
+        // visible and lets React Query retry / refetch on next open.
+        if (!res.ok) throw new Error(`Detail fetch failed (${res.status})`);
         return res.json();
       },
       enabled: !!selectedItem?.slug,
@@ -168,7 +172,7 @@ export function MediaDetailPanel() {
         id: it.id,
         type: it.media_type,
         title: it.title,
-        genre: it.genres?.[0] || "",
+        genres: [...(it.genres || []), ...(it.tags || [])].join("|"),
       });
       const res = await fetch(`/api/explore-more?${params}`);
       if (!res.ok) return [];

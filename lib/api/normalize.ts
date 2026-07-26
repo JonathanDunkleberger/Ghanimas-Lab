@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { MediaItem } from "@/stores/app-store";
-import { bookCoverUrl } from "@/lib/api/books";
+import { bookCoverUrl, stripHtml } from "@/lib/api/books";
 
 // ─── TMDB Genre ID → Name Map ──────────────────────────────────────────────
 const TMDB_GENRE_MAP: Record<number, string> = {
@@ -141,7 +141,7 @@ export function normalizeBook(r: any): MediaItem {
     title: vi.title || "",
     slug: `gbook-${r.id}`,
     cover_image_url: bookCoverUrl(vi) || undefined,
-    description: vi.description,
+    description: stripHtml(vi.description),
     year: parseInt((vi.publishedDate || "").slice(0, 4)) || undefined,
     rating: vi.averageRating ? Math.round(vi.averageRating * 20) : undefined,
     genres: vi.categories || [],

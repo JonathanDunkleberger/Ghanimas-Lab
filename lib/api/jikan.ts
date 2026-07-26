@@ -39,7 +39,10 @@ async function jikanJSON(url: string, revalidate: number) {
   const isValid = (json: any) =>
     json && json.data != null && json.status !== 500 && json.status !== 504;
   try {
-    const res = await fetch(url, { next: { revalidate } });
+    const res = await fetch(url, {
+      next: { revalidate },
+      signal: AbortSignal.timeout(4000),
+    });
     if (res.ok) {
       const json = await res.json();
       if (isValid(json)) return json;
@@ -48,7 +51,10 @@ async function jikanJSON(url: string, revalidate: number) {
     // fall through to uncached retry
   }
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
     if (res.ok) {
       const json = await res.json();
       if (isValid(json)) return json;

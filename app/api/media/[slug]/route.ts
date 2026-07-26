@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTMDBDetails } from "@/lib/api/tmdb";
 import { getAnimeDetails, getMangaDetails, getAnimeEpisodeCount } from "@/lib/api/jikan";
 import { getGameDetails, igdbWebsiteLabel, secondsToHours } from "@/lib/api/igdb";
-import { getBookDetails, bookCoverUrl, searchBooks } from "@/lib/api/books";
+import { getBookDetails, bookCoverUrl, searchBooks, stripHtml } from "@/lib/api/books";
 import {
   getOpenLibraryWorkDetails,
   getOpenLibraryAuthorByName,
@@ -372,10 +372,11 @@ export async function GET(
       const details = await getOpenLibraryWorkDetails(sourceId);
       if (details) {
         const { work } = details;
-        const description =
+        const description = stripHtml(
           typeof work.description === "string"
             ? work.description
-            : work.description?.value;
+            : work.description?.value
+        );
         const coverId = (work.covers || []).find((c: number) => c > 0);
         const authorLine = details.authorNames.join(", ");
         const q = encodeURIComponent(
@@ -476,7 +477,7 @@ export async function GET(
           media_type: "book",
           title: vol.title || "",
           slug: `gbook-${sourceId}`,
-          description: vol.description,
+          description: stripHtml(vol.description),
           cover_image_url: bookCoverUrl(vol),
           year: vol.publishedDate ? parseInt(vol.publishedDate) : undefined,
           rating: vol.averageRating ? vol.averageRating * 20 : undefined,
