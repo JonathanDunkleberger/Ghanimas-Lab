@@ -2,6 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
+    // Sources already serve CDN-sized variants (TMDB w300/w780, IGDB
+    // cover_big, OL -L); Vercel's optimizer quota 402s once exhausted,
+    // which breaks every uncached image site-wide.
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "image.tmdb.org" },
       { protocol: "https", hostname: "images.igdb.com" },
