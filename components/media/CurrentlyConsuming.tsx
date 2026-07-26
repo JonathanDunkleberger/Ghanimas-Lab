@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { SafeImage } from "@/components/shared/SafeImage";
 import { Play, Clock, Film } from "lucide-react";
 import { MEDIA_TYPES } from "@/lib/constants";
 import type { LibraryEntry } from "@/stores/app-store";
@@ -45,12 +45,17 @@ function CurrentCard({
       {/* Cover */}
       <div className="relative h-[92px] w-[66px] flex-shrink-0 overflow-hidden rounded-[7px]">
         {media.cover_image_url ? (
-          <Image
+          <SafeImage
             src={media.cover_image_url}
             alt={media.title}
             fill
             className="object-cover"
             sizes="66px"
+            fallback={
+              <div className="flex h-full w-full items-center justify-center bg-fey-surface">
+                <TypeIcon size={20} style={{ color: tc, opacity: 0.3 }} />
+              </div>
+            }
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-fey-surface">

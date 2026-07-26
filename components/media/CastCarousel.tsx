@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
-import Image from "next/image";
+import { SafeImage } from "@/components/shared/SafeImage";
 import { ChevronLeft, ChevronRight, User } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -92,12 +92,17 @@ export function CastCarousel({ cast, title = "Cast & Crew" }: CastCarouselProps)
             >
               <div className="relative mb-2 h-[72px] w-[72px] overflow-hidden rounded-full border border-white/[0.04]">
                 {member.image_url ? (
-                  <Image
+                  <SafeImage
                     src={member.image_url}
                     alt={member.name}
                     fill
                     className="object-cover"
                     sizes="72px"
+                    fallback={
+                      <div className="flex h-full w-full items-center justify-center bg-fey-surface">
+                        <User size={24} className="text-cream/15" />
+                      </div>
+                    }
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-fey-surface">

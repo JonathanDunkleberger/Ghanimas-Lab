@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
+import { SafeImage } from "@/components/shared/SafeImage";
 import {
   X,
   Star,
@@ -399,12 +399,17 @@ export function MediaDetailPanel() {
           style={{ height: 340 }}
         >
           {(display.backdrop_image_url || display.cover_image_url) ? (
-            <Image
+            <SafeImage
               src={display.backdrop_image_url || display.cover_image_url!}
               alt={display.title}
               fill
               className="object-cover"
               sizes="900px"
+              fallback={
+                <div className="flex h-full w-full items-center justify-center bg-fey-surface">
+                  <TypeIcon size={56} style={{ color: tc, opacity: 0.2 }} />
+                </div>
+              }
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-fey-surface">
@@ -577,10 +582,10 @@ export function MediaDetailPanel() {
             </div>
           )}
 
-          {/* 4. TAGLINE */}
+          {/* 4. TAGLINE — italic only; taglines often carry their own quotes */}
           {typeof display.metadata?.tagline === "string" && display.metadata.tagline && (
             <p className="mb-3 text-[13px] italic text-[#f0eeea]/35">
-              &ldquo;{display.metadata.tagline}&rdquo;
+              {display.metadata.tagline}
             </p>
           )}
 
@@ -887,12 +892,13 @@ export function MediaDetailPanel() {
                   const inner = (
                     <>
                       {w.logo_url && (
-                        <Image
+                        <SafeImage
                           src={w.logo_url}
                           alt={w.provider}
                           width={20}
                           height={20}
                           className="rounded-[3px]"
+                          fallback={null}
                         />
                       )}
                       {w.provider}
@@ -948,7 +954,7 @@ export function MediaDetailPanel() {
                     className="group/vid relative flex-shrink-0 cursor-pointer overflow-hidden rounded-lg"
                     style={{ width: 240, height: 135 }}
                   >
-                    <Image
+                    <SafeImage
                       src={v.thumbnail}
                       alt={v.title}
                       fill
@@ -1076,12 +1082,17 @@ function PosterStrip({
               >
                 <div className="relative aspect-[2/3] rounded-lg overflow-hidden transition-all duration-300 ease-out group-hover/rel:scale-105 group-hover/rel:-translate-y-1 group-hover/rel:shadow-lg">
                   {rel.cover_image_url ? (
-                    <Image
+                    <SafeImage
                       src={rel.cover_image_url}
                       alt={rel.title}
                       fill
                       className="object-cover"
                       sizes="120px"
+                      fallback={
+                        <div className="flex h-full w-full items-center justify-center bg-fey-surface text-[10px] text-[#f0eeea]/20">
+                          {rel.title}
+                        </div>
+                      }
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-fey-surface text-[10px] text-[#f0eeea]/20">

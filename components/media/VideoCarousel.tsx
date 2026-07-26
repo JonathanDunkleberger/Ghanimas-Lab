@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
-import Image from "next/image";
+import { SafeImage } from "@/components/shared/SafeImage";
 import { Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -95,7 +95,7 @@ export function VideoCarousel({ videos, title = "Videos" }: VideoCarouselProps) 
               whileTap={{ scale: 0.98 }}
               onClick={() => setActiveVideo(video)}
             >
-              <Image
+              <SafeImage
                 src={video.thumbnail}
                 alt={video.title}
                 fill

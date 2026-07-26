@@ -101,6 +101,9 @@ export function RoomPost({ post, mediaId, depth = 0 }: RoomPostProps) {
                 src={post.profile.avatar_url}
                 alt=""
                 className="h-6 w-6 rounded-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
               />
             ) : (
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-silver/15 text-[10px] font-bold text-silver">

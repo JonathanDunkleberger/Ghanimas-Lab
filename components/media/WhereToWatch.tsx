@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { SafeImage } from "@/components/shared/SafeImage";
 import { ExternalLink, Tv, ShoppingCart, Download } from "lucide-react";
 
 interface WatchProvider {
@@ -59,12 +59,13 @@ export function WhereToWatch({ providers }: WhereToWatchProps) {
                     className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-fey-surface px-3 py-2 text-[11px] font-medium text-cream/70 transition-all hover:border-gold/10 hover:bg-fey-elevated hover:text-cream"
                   >
                     {p.logo_url && (
-                      <Image
+                      <SafeImage
                         src={p.logo_url}
                         alt={p.provider}
                         width={18}
                         height={18}
                         className="rounded"
+                        fallback={null}
                       />
                     )}
                     {p.provider}
